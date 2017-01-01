@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.6)
 project(filter_proxy_C)
-
 set(CMAKE_C_STANDARD 11)
 
-set(SOURCE_FILES main.c)
-add_executable(filter_proxy_C ${SOURCE_FILES})
+aux_source_directory(./source SOURCE)
+include_directories(${SOURCE})
+
+aux_source_directory(. MAIN)
+
+add_executable(${PROJECT_NAME} ${MAIN} ${SOURCE})
