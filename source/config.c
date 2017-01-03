@@ -83,10 +83,11 @@ int parseBlockRule(struct configStruct* config, char** splittedLine){
     char* blockPattern = splittedLine[1];
     if(strlen(blockPattern)<1)return -1;
     struct blockRule* blockR = (struct blockRule*)malloc(1*sizeof(struct blockRule));
-    blockR->hostPattern=blockPattern;
+    blockR->hostPattern=(char*)malloc((strlen(blockPattern)+1)*sizeof(char));
+    strcpy(blockR->hostPattern,blockPattern);
     regex_t reg;
-    if(regcomp(&reg,blockPattern,0)){
-        fprintf(stderr,"Unable to compile regex: %s",blockPattern);
+    if(regcomp(&reg,blockR->hostPattern,0)){
+        fprintf(stderr,"Unable to compile regex: %s",blockR->hostPattern);
         free(blockR);
         return -1;
     }
@@ -121,12 +122,15 @@ int parseHeaderRule(struct configStruct* config, char** splittedLine, int header
 
     struct headersRule* rule = (struct headersRule*)malloc(1*sizeof(struct headersRule));
     rule->type=type;
-    rule->value=value;
-    rule->hostNamePattern=host;
-    rule->namePattern=name;
+    rule->value = (char*)malloc((strlen(value)+1)*sizeof(char));
+    strcpy(rule->value,value);
+    rule->hostNamePattern = (char*)malloc((strlen(host)+1)*sizeof(char));
+    strcpy(rule->hostNamePattern,host);
+    rule->namePattern = (char*)malloc((strlen(name)+1)*sizeof(char));
+    strcpy(rule->namePattern,name);
 
     regex_t nameReg, hostReg;
-    if(regcomp(&nameReg,name,0) || (host==NULL && regcomp(&hostReg,host,0))){
+    if(regcomp(&nameReg,rule->namePattern,0) || (host==NULL && regcomp(&hostReg,rule->hostNamePattern,0))){
         free(rule);
         fprintf(stderr,"Unable to compile regex: %s, %s",name,host);
         return -1;
