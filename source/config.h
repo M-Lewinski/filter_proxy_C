@@ -9,14 +9,14 @@ enum ruleType{
     CHA = 2,
 };
 struct blockRule{
-    regex_t hostRegex;
+    regex_t* hostRegex;
     char* hostPattern;
 };
 struct headersRule{
-    regex_t nameRegex;
+    regex_t* nameRegex;
     char* namePattern;
     char* value;
-    regex_t hostNameRegex; //OPTIONAL (check if pattern!=NULL before comparing)
+    regex_t* hostNameRegex; //OPTIONAL
     char* hostNamePattern;
     enum ruleType type;
 };

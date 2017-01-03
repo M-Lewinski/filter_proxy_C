@@ -33,13 +33,27 @@ struct configStruct* loadConfigWithPath(char* filePath){
     fclose(file);
     return config;
 }
+void freeHeaderStruct(struct headersRule ruleToFree){
+    regfree(ruleToFree.hostNameRegex);
+    regfree(ruleToFree.nameRegex);
+    free(ruleToFree.namePattern);
+    free(ruleToFree.hostNamePattern);
+    free(ruleToFree.value);
+}
 
 void freeConfig(struct configStruct* config){
-    //TODO FREE ALL REGEX
-    //TODO FREE RULES
-
-    //TODO FREE CONFIG
-
+    for(int i=0;i<config->blockRulesNumber;i++){
+        free(config->block[i].hostPattern);
+        regfree(config->block[i].hostRegex);
+    }
+    for(int i=0;i<config->cookieRulesNumber;i++)
+        freeHeaderStruct(config->cookie[i]);
+    for(int i=0;i<config->headerRulesNumber;i++)
+        freeHeaderStruct(config->header[i]);
+    free(config->cookie);
+    free(config->block);
+    free(config->header);
+    free(config);
 };
 
 int parseLine(struct configStruct* config, char* line, ssize_t lineLen){
@@ -85,8 +99,9 @@ int parseBlockRule(struct configStruct* config, char** splittedLine){
     struct blockRule* blockR = (struct blockRule*)malloc(1*sizeof(struct blockRule));
     blockR->hostPattern=(char*)malloc((strlen(blockPattern)+1)*sizeof(char));
     strcpy(blockR->hostPattern,blockPattern);
-    regex_t reg;
-    if(regcomp(&reg,blockR->hostPattern,0)){
+
+    regex_t *reg = (regex_t*)malloc(sizeof(regex_t));
+    if(regcomp(reg,blockR->hostPattern,0)){
         fprintf(stderr,"Unable to compile regex: %s",blockR->hostPattern);
         free(blockR);
         return -1;
@@ -100,6 +115,7 @@ int parseBlockRule(struct configStruct* config, char** splittedLine){
     config->blockRulesNumber++;
     return 0;
 }
+
 int parseHeaderRule(struct configStruct* config, char** splittedLine, int headerCookie){
     enum ruleType type;
     if(!strcmp(splittedLine[1],"DEL")) type = DEL;
@@ -122,22 +138,32 @@ int parseHeaderRule(struct configStruct* config, char** splittedLine, int header
 
     struct headersRule* rule = (struct headersRule*)malloc(1*sizeof(struct headersRule));
     rule->type=type;
-    rule->value = (char*)malloc((strlen(value)+1)*sizeof(char));
-    strcpy(rule->value,value);
-    rule->hostNamePattern = (char*)malloc((strlen(host)+1)*sizeof(char));
-    strcpy(rule->hostNamePattern,host);
+
+    if(value!=NULL) rule->value = (char*)malloc((strlen(value)+1)*sizeof(char));
+    if(host!=NULL) rule->hostNamePattern = (char*)malloc((strlen(host)+1)*sizeof(char));
     rule->namePattern = (char*)malloc((strlen(name)+1)*sizeof(char));
+
+    strcpy(rule->value,value);
+    strcpy(rule->hostNamePattern,host);
     strcpy(rule->namePattern,name);
 
-    regex_t nameReg, hostReg;
-    if(regcomp(&nameReg,rule->namePattern,0) || (host==NULL && regcomp(&hostReg,rule->hostNamePattern,0))){
+    regex_t *nameReg=(regex_t*)malloc(sizeof(regex_t));
+    regex_t *hostReg=NULL;
+    if(regcomp(nameReg,rule->namePattern,0)){
         free(rule);
-        fprintf(stderr,"Unable to compile regex: %s, %s",name,host);
+        fprintf(stderr,"Unable to compile regex: %s\n",name);
         return -1;
     }
-
-    rule->nameRegex=nameReg;
+    if(host!=NULL) {
+        hostReg=(regex_t*)malloc(sizeof(regex_t));
+        if (regcomp(hostReg, rule->hostNamePattern, 0)) {
+            free(rule);
+            fprintf(stderr, "Unable to compile regex: %s\n", host);
+            return -1;
+        }
+    }
     rule->hostNameRegex=hostReg;
+    rule->nameRegex=nameReg;
 
     switch (headerCookie){
         case 0:
