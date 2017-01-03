@@ -70,7 +70,7 @@ int parseLine(struct configStruct* config, char* line, ssize_t lineLen){
     for(char* splitPointer = lineCpy+1;splitPointer[0]!='\0';splitPointer++) { //LINE SPLITTING
         if(maxPartCount<partCount){
             maxPartCount+=1;
-            realloc(splittedLine,maxPartCount*sizeof(char*));
+            splittedLine=realloc(splittedLine,maxPartCount*sizeof(char*));
         }
         if ((splitPointer[0] != ' ' || splitPointer[0] != '\t') &&
             ((splitPointer - 1)[0] == ' ' || (splitPointer - 1)[0] == '\t')) {
@@ -109,7 +109,7 @@ int parseBlockRule(struct configStruct* config, char** splittedLine){
     blockR->hostRegex=reg;
     if(config->blockRulesNumber>=blockRuleMalloc){
         blockRuleMalloc++;
-        realloc(config->block,blockRuleMalloc*sizeof(struct blockRule));
+        config->block=realloc(config->block,blockRuleMalloc*sizeof(struct blockRule));
     }
     config->block[config->blockRulesNumber]=*blockR;
     config->blockRulesNumber++;
@@ -169,7 +169,7 @@ int parseHeaderRule(struct configStruct* config, char** splittedLine, int header
         case 0:
             if(config->headerRulesNumber>=headerRuleMalloc){
                 headerRuleMalloc++;
-                realloc(config->header,headerRuleMalloc*sizeof(struct blockRule));
+                config->header=realloc(config->header,headerRuleMalloc*sizeof(struct blockRule));
             }
             config->header[config->headerRulesNumber]=*rule;
             config->headerRulesNumber++;
@@ -177,7 +177,7 @@ int parseHeaderRule(struct configStruct* config, char** splittedLine, int header
         case 1:
             if(config->cookieRulesNumber>=cookieRuleMalloc){
                 cookieRuleMalloc++;
-                realloc(config->cookie,cookieRuleMalloc*sizeof(struct blockRule));
+                config->cookie=realloc(config->cookie,cookieRuleMalloc*sizeof(struct blockRule));
             }
             config->cookie[config->cookieRulesNumber]=*rule;
             config->cookieRulesNumber++;
