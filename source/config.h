@@ -16,7 +16,7 @@ struct headersRule{
     regex_t nameRegex;
     char* namePattern;
     char* value;
-    regex_t hostNameRegex;
+    regex_t hostNameRegex; //OPTIONAL (check if pattern!=NULL before comparing)
     char* hostNamePattern;
     enum ruleType type;
 };
@@ -28,7 +28,6 @@ struct configStruct{
     struct headersRule* cookie;
     int cookieRulesNumber;
 };
-
 
 /**
  *
@@ -55,3 +54,19 @@ void freeConfig(struct configStruct* config);
  * @return 0 if everything was OK, sth else in other case
  */
 int parseLine(struct configStruct* config, char* line, ssize_t lineLen);
+
+/**
+ * Parse block rule. Used in parseLine function;
+ * @param config pointer to configStruct to save results
+ * @param splittedLine splittedLine
+ * @return 0 if everything was OK, sth else in other case
+ */
+int parseBlockRule(struct configStruct* config, char** splittedLine);
+/**
+ * Parse header or cookie rule. Used in parseLine function;
+ * @param config pointer to configStruct to save results
+ * @param splittedLine
+ * @param headerCookie
+ * @return 0 if everything was ok, sth else in other case
+ */
+int parseHeaderRule(struct configStruct* config, char** splittedLine, int headerCookie);

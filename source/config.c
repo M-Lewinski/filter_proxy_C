@@ -1,6 +1,5 @@
 #include "config.h"
 
-
 struct configStruct* loadConfig(){
     return loadConfigWithPath("../conf.ini");
 };
@@ -33,10 +32,13 @@ struct configStruct* loadConfigWithPath(char* filePath){
     if(line!=NULL) free(line);
     fclose(file);
     return config;
-};
+}
 
 void freeConfig(struct configStruct* config){
-    //TODO FREE CONFIG FILE
+    //TODO FREE ALL REGEX
+    //TODO FREE RULES
+
+    //TODO FREE CONFIG
 
 };
 
@@ -47,6 +49,7 @@ int parseLine(struct configStruct* config, char* line, ssize_t lineLen){
 
     int maxPartCount=10, partCount=1;
     char** splittedLine = (char**)malloc(maxPartCount*sizeof(char*));
+    for(int i=0;i<maxPartCount;i++) splittedLine[i]="\0";
     char*lineCpy=(char*)malloc((strlen(line)+1)*sizeof(char));
     strcpy(lineCpy, line);
     splittedLine[0]=lineCpy;
@@ -62,13 +65,96 @@ int parseLine(struct configStruct* config, char* line, ssize_t lineLen){
             partCount++;
         }
     }
+    int toReturn;
+    if(!strcmp(splittedLine[0],"BLOCK"))
+        toReturn=parseBlockRule(config, splittedLine);
+    else if (!strcmp(splittedLine[0],"HEADER"))
+        toReturn=parseHeaderRule(config, splittedLine,0);
+    else if (!strcmp(splittedLine[0],"COOKIE"))
+        toReturn=parseHeaderRule(config, splittedLine,1);
+    else toReturn=-1;
 
-    for(int i=0;i<partCount;i++)puts(splittedLine[i]);
-
-
-    //TODO PARSE SINGLE LINE
-    //TODO REALLOC MEMORY IF NEEDED
     free(splittedLine);
     free(lineCpy);
-    return -1;
+    return toReturn;
 };
+
+int parseBlockRule(struct configStruct* config, char** splittedLine){
+    char* blockPattern = splittedLine[1];
+    if(strlen(blockPattern)<1)return -1;
+    struct blockRule* blockR = (struct blockRule*)malloc(1*sizeof(struct blockRule));
+    blockR->hostPattern=blockPattern;
+    regex_t reg;
+    if(regcomp(&reg,blockPattern,0)){
+        fprintf(stderr,"Unable to compile regex: %s",blockPattern);
+        free(blockR);
+        return -1;
+    }
+    blockR->hostRegex=reg;
+    if(config->blockRulesNumber>=blockRuleMalloc){
+        blockRuleMalloc++;
+        realloc(config->block,blockRuleMalloc*sizeof(struct blockRule));
+    }
+    config->block[config->blockRulesNumber]=*blockR;
+    config->blockRulesNumber++;
+    return 0;
+}
+int parseHeaderRule(struct configStruct* config, char** splittedLine, int headerCookie){
+    enum ruleType type;
+    if(!strcmp(splittedLine[1],"DEL")) type = DEL;
+    else if(!strcmp(splittedLine[1],"ADD")) type = ADD;
+    else if(!strcmp(splittedLine[1],"CHA")) type = CHA;
+    else return -1;
+
+    char* name=splittedLine[2];
+    if(strlen(name)<1) return -1;
+
+    char* value=NULL;
+    if(type!=DEL){
+        value=splittedLine[3];
+        if(strlen(value)<1) return -1;
+    }
+
+    char* host=NULL;
+    if(type!=DEL) host=splittedLine[4];
+    else host=splittedLine[3];
+
+    struct headersRule* rule = (struct headersRule*)malloc(1*sizeof(struct headersRule));
+    rule->type=type;
+    rule->value=value;
+    rule->hostNamePattern=host;
+    rule->namePattern=name;
+
+    regex_t nameReg, hostReg;
+    if(regcomp(&nameReg,name,0) || (host==NULL && regcomp(&hostReg,host,0))){
+        free(rule);
+        fprintf(stderr,"Unable to compile regex: %s, %s",name,host);
+        return -1;
+    }
+
+    rule->nameRegex=nameReg;
+    rule->hostNameRegex=hostReg;
+
+    switch (headerCookie){
+        case 0:
+            if(config->headerRulesNumber>=headerRuleMalloc){
+                headerRuleMalloc++;
+                realloc(config->header,headerRuleMalloc*sizeof(struct blockRule));
+            }
+            config->header[config->headerRulesNumber]=*rule;
+            config->headerRulesNumber++;
+            break;
+        case 1:
+            if(config->cookieRulesNumber>=cookieRuleMalloc){
+                cookieRuleMalloc++;
+                realloc(config->cookie,cookieRuleMalloc*sizeof(struct blockRule));
+            }
+            config->cookie[config->cookieRulesNumber]=*rule;
+            config->cookieRulesNumber++;
+            break;
+        default:
+            free(rule);
+            exit(1);
+    }
+    return 0;
+}
