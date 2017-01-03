@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6.1)
+cmake_minimum_required(VERSION 2.8)
 project(filter_proxy_C)
 set(CMAKE_C_STANDARD 11)
 
