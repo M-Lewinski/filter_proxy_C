@@ -1,7 +1,9 @@
-#include "stdio.h"
-#include "regex.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <regex.h>
+#include <string.h>
 
-enum headerRuleType{
+enum ruleType{
     ADD = 0,
     DEL = 1,
     CHA = 2,
@@ -11,12 +13,12 @@ struct blockRule{
     char* hostPattern;
 };
 struct headersRule{
-    regex_t headerNameRegex;
-    char* headerNamePattern;
+    regex_t nameRegex;
+    char* namePattern;
     char* value;
     regex_t hostNameRegex;
     char* hostNamePattern;
-    enum headerRuleType type;
+    enum ruleType type;
 };
 struct configStruct{
     struct blockRule* block;
@@ -45,3 +47,11 @@ struct configStruct* loadConfigWithPath(char* filePath);
  * @param config pointer to config
  */
 void freeConfig(struct configStruct* config);
+/**
+ * Parse single line from config file
+ * @param config pointer to config struct
+ * @param line buffer with line
+ * @param lineLen line length
+ * @return 0 if everything was OK, sth else in other case
+ */
+int parseLine(struct configStruct* config, char* line, ssize_t lineLen);

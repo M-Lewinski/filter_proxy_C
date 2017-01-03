@@ -4,7 +4,12 @@
 int main(int argc, char** argv){
     puts("Starting filter proxy");
     struct configStruct* config = loadConfig();
-    //TODO LOAD CONFIG FILE
+    if(config == NULL){
+        fprintf(stderr, "Loading file FAILED");
+        return 1;
+    }
+
+    //TODO START PROXY
 
     freeConfig(config);
     return 0;
