@@ -2,14 +2,21 @@
 #include "source/config.h"
 
 int main(int argc, char** argv){
-    puts("Starting filter proxy");
-    struct configStruct* config = loadConfig();
+    if(argc<2){
+        fprintf(stderr,"Not enough parameters");
+        return 1;
+    }
+    struct configStruct* config;
+    if(argc==3) config = loadConfigWithPath(argv[2]);
+    else config = loadConfig();
     if(config == NULL){
         fprintf(stderr, "Loading file FAILED");
         return 1;
     }
 
-    //TODO START PROXY
+    puts("Starting filter proxy");
+    //startProxyServer(argv[1],config);
+
 
     freeConfig(config);
     return 0;

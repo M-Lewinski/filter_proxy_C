@@ -42,13 +42,14 @@ void freeHeaderStruct(struct headersRule ruleToFree){
 }
 
 void freeConfig(struct configStruct* config){
-    for(int i=0;i<config->blockRulesNumber;i++){
+    int i;
+    for(i=0;i<config->blockRulesNumber;i++){
         free(config->block[i].hostPattern);
         regfree(config->block[i].hostRegex);
     }
-    for(int i=0;i<config->cookieRulesNumber;i++)
+    for(i=0;i<config->cookieRulesNumber;i++)
         freeHeaderStruct(config->cookie[i]);
-    for(int i=0;i<config->headerRulesNumber;i++)
+    for(i=0;i<config->headerRulesNumber;i++)
         freeHeaderStruct(config->header[i]);
     free(config->cookie);
     free(config->block);
@@ -57,17 +58,19 @@ void freeConfig(struct configStruct* config){
 };
 
 int parseLine(struct configStruct* config, char* line, ssize_t lineLen){
+    int i;
     if(line[lineLen-1]=='\n') line[lineLen-1]='\0'; //Removing new line
     while(line[0]=='\t' || line[0]==' ') line=line+1; //Removing whitespaces
     if(line[0]=='#' || line[0]=='\0') return 0; //Skipping empty lines and comments
 
     int maxPartCount=10, partCount=1;
     char** splittedLine = (char**)malloc(maxPartCount*sizeof(char*));
-    for(int i=0;i<maxPartCount;i++) splittedLine[i]="\0";
+    for(i=0;i<maxPartCount;i++) splittedLine[i]="\0";
     char*lineCpy=(char*)malloc((strlen(line)+1)*sizeof(char));
     strcpy(lineCpy, line);
     splittedLine[0]=lineCpy;
-    for(char* splitPointer = lineCpy+1;splitPointer[0]!='\0';splitPointer++) { //LINE SPLITTING
+    char* splitPointer;
+    for(splitPointer = lineCpy+1;splitPointer[0]!='\0';splitPointer++) { //LINE SPLITTING
         if(maxPartCount<partCount){
             maxPartCount+=1;
             splittedLine=realloc(splittedLine,maxPartCount*sizeof(char*));
