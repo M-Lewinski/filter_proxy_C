@@ -1,3 +1,6 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <regex.h>
@@ -70,3 +73,5 @@ int parseBlockRule(struct configStruct* config, char** splittedLine);
  * @return 0 if everything was ok, sth else in other case
  */
 int parseHeaderRule(struct configStruct* config, char** splittedLine, int headerCookie);
+
+#endif

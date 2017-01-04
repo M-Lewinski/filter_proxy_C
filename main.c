@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include "source/config.h"
+#include "source/proxy.h"
 
 int main(int argc, char** argv){
     if(argc<2){
@@ -15,7 +16,7 @@ int main(int argc, char** argv){
     }
 
     puts("Starting filter proxy");
-    //startProxyServer(argv[1],config);
+    startProxyServer(argv[1],config);
 
 
     freeConfig(config);
