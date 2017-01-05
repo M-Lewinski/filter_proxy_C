@@ -14,9 +14,14 @@ struct requestStruct * newRequestStruct(){
     return req;
 }
 
-void deleteRequestStruct (struct requestStruct* request, struct requestStruct* requests){
-    //TODO IMPLEMENT THIS
-    //TODO IT SHOULD CLOSE SOCKETS, FREE MEMORY AND REMOVE request from requests list
+void deleteRequestStruct (int requestIndex, struct requestStruct** requests){
+    struct requestStruct *req = requests[requestIndex];
+    if(req->clientSoc!=-1)close(req->clientSoc);
+    if(req->serverSoc!=-1)close(req->serverSoc);
+    free(req->request);
+    free(req);
+    if(requestIndex==connections-1) connections--;
+    else requests[requestIndex] = requests[--connections];
 }
 
 int createAndListenServerSocket(char *port) {
@@ -75,21 +80,31 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     return req;
 }
 
-void handleRequest(struct requestStruct *reqStruct) {
+char* readData(char *data, int socket){
+    //TODO CHANGE IMPLEMENTATION
+    data=(char*)malloc(3000*sizeof(char));
     char buf[1024];
     int j=0;
-
     for (j=0;j<1024;j++)buf[j]='\0';
-    ssize_t readed;
-    if( (readed=recv(reqStruct->clientSoc, buf, 1024, 0)) > 0) {
+
+    ssize_t read;
+    if( (read=recv(socket, buf, 1024, 0)) > 0) {
         //TODO read headers
         //TODO read form data
         //TODO how to know if end of reading?
         //TODO between headers and data we have empty line which means two \n \n characters
         //TODO in headers we have header with content length. It should be enough but not as easy as I thought.
-        write(1, buf, (size_t) readed);
-        for (j=0;j<10;j++)buf[j]='\0';
     }
+    strcpy(data,buf);
+    return data;
+}
+
+int handleRequest(struct requestStruct *reqStruct) {
+    reqStruct->request = readData(reqStruct->request, reqStruct->clientSoc);
+
+    //TODO REMOVE THIS WRITE
+    write(1, reqStruct->request, strlen(reqStruct->request));
+
 
     //TODO CHECK BLOCK FILTER
     //TODO IF PAGE IS BLOCKED WE DO NOT NEED TO CALL SERVER. WE SHOULD RETURN ONLY response403, cloce socket and free memory
@@ -99,11 +114,10 @@ void handleRequest(struct requestStruct *reqStruct) {
     //ONLY FOR TEST
     //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO REVER
     send(reqStruct->clientSoc,response403,strlen(response403),0);
-    close(reqStruct->clientSoc); //Close connection
-    reqStruct->clientSoc = -1;
+    return -1;
 }
 
-void handleServerResponse(struct requestStruct *pStruct) {
+int handleServerResponse(struct requestStruct *reqStruct) {
     //TODO READ DATA FROM SERVER
 
     //TODO FILTER IF WE WANT TO IMPLEMENT FILTERING ON THIS LEVEL
@@ -111,6 +125,7 @@ void handleServerResponse(struct requestStruct *pStruct) {
     //TODO CLOSE SOCKETS
 
     //TODO DELETE REQUEST STRUCT
+    return -1;
 };
 
 void startProxyServer(char *port,struct configStruct* config){
@@ -152,14 +167,18 @@ void startProxyServer(char *port,struct configStruct* config){
                     requests[connections] = req;
                     connections++;
                 }
+                if(connections >= (maxConnections-5)){
+                    maxConnections*=2;
+                    requests = realloc(requests,maxConnections * sizeof(struct requestStruct*));
+                }
             } else { //Other events - read data and do sth.
                 for (k = 0; k < connections; k++){
                     if (requests[k]->clientSoc != -1 && requests[k]->clientSoc == events[i].data.fd) {
-                        handleRequest(requests[k]);
+                        if(handleRequest(requests[k])==-1) deleteRequestStruct(k,requests);
                         break;
                     }
                     if (requests[k]->serverSoc != -1 && requests[k]->serverSoc == events[i].data.fd) {
-                        handleServerResponse(requests[k]);
+                        if(handleServerResponse(requests[k])==-1) deleteRequestStruct(k,requests);
                         break;
                     }
                 }

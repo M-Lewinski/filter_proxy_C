@@ -22,6 +22,19 @@ struct requestStruct{
 };
 
 /**
+ * Create new request struct and alocate memmory
+ * @return pointer to request struct
+ */
+struct requestStruct * newRequestStruct();
+
+/**
+ * Close sockets, free memory and delete request struct from requests array
+ * @param requestIndex request index in requests array
+ * @param requests pointer to pointer to request
+ */
+void deleteRequestStruct (int requestIndex, struct requestStruct** requests);
+
+/**
  * Create server socket for given port and return it
  * @param port used in binding server socket
  * @return server socket handler
@@ -44,14 +57,16 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd);
 /**
  * Should handle incoming request: read data, parse and filter request and make call to server;
  * @param clientFd
+ * @return -1 if we should remove response and close socket, 0 in other case
  */
-void handleRequest(struct requestStruct *clientFd);
+int handleRequest(struct requestStruct *reqStruct);
 
 /**
  * Handle server response and write data to client socket
  * @param reqStruct struct with client and server sockets
+ * @return -1 if we should remove response and close socket, 0 in other case
  */
-void handleServerResponse(struct requestStruct *reqStruct);
+int handleServerResponse(struct requestStruct *reqStruct);
 
 
 /**
