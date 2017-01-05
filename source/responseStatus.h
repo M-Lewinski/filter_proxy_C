@@ -2,6 +2,7 @@
 #define RES_S_H
 
 extern char *response403;
-extern int response403Len;
+extern char *notImplemented;
+extern char *proxyTimeout;
 
 #endif

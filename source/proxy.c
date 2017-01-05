@@ -3,7 +3,7 @@
 char *localhost = (char*)"127.0.0.1";
 int max_events = 256;
 
-int createAndListenServerSocket(char *port){
+int createAndListenServerSocket(char *port) {
     struct sockaddr_in serverSocAddr;
     serverSocAddr.sin_port = htons((uint16_t) atoi(port));
     serverSocAddr.sin_family = AF_INET;
@@ -28,7 +28,7 @@ int createAndListenServerSocket(char *port){
     return serverSoc;
 }
 
-int handleConsoleConnection(){
+int handleConsoleConnection() {
     char buf[4];
     for(int j=0;j<4;j++) buf[j]=0;
     puts("DUPA");
@@ -37,7 +37,7 @@ int handleConsoleConnection(){
     return 1;
 }
 
-void handleNewConnection(int serverFd, int epoolFd){
+void handleNewConnection(int serverFd, int epoolFd) {
     struct epoll_event clientEvent;
     int clientLen;
     struct sockaddr_in clientAddr;
@@ -47,13 +47,12 @@ void handleNewConnection(int serverFd, int epoolFd){
         fprintf(stderr, "Failed to accept connection");
         return;
     }
-    puts("x");
     clientEvent.data.fd=clientFd;
     clientEvent.events = EPOLLIN | EPOLLET;
     if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, clientFd, &clientEvent)==-1);
 }
 
-void handleRequest(int clientFd){
+void handleRequest(int clientFd) {
     char buf[1024];
     int j=0;
 
