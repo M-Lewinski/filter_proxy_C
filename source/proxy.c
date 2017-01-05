@@ -83,17 +83,17 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
 char* readData(char *data, int socket){
     //TODO CHANGE IMPLEMENTATION
     data=(char*)malloc(3000*sizeof(char));
-    char buf[1024];
+    char buf[3000];
     int j=0;
-    for (j=0;j<1024;j++)buf[j]='\0';
+    for (j=0;j<3000;j++)buf[j]='\0';
 
     ssize_t read;
-    if( (read=recv(socket, buf, 1024, 0)) > 0) {
+    if( (read=recv(socket, buf, 3000, 0)) > 0) {
         //TODO read headers
         //TODO read form data
         //TODO how to know if end of reading?
         //TODO between headers and data we have empty line which means two \n \n characters
-        //TODO in headers we have header with content length. It should be enough but not as easy as I thought.
+        //TODO in headers we have header with content length. It should be enough to read all data.
     }
     strcpy(data,buf);
     return data;
@@ -112,7 +112,7 @@ int handleRequest(struct requestStruct *reqStruct) {
     //TODO MODIFY REQUEST USING FILTERS
 
     //ONLY FOR TEST
-    //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO REVER
+    //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO SERVER
     send(reqStruct->clientSoc,response403,strlen(response403),0);
     return -1;
 }
@@ -122,11 +122,14 @@ int handleServerResponse(struct requestStruct *reqStruct) {
 
     //TODO FILTER IF WE WANT TO IMPLEMENT FILTERING ON THIS LEVEL
 
-    //TODO CLOSE SOCKETS
-
-    //TODO DELETE REQUEST STRUCT
+    //TODO WRITE RESPONSE TO CLIENT
+    //Hmnn, it should always return -1
     return -1;
 };
+
+void handleTimeout(struct requestStruct **requests) {
+    //TODO REMOVE ALL OLD REQUESTS WITH TIMEOUT AND SEND MESSAGE WITH 504 status to client
+}
 
 void startProxyServer(char *port,struct configStruct* config){
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
@@ -184,6 +187,7 @@ void startProxyServer(char *port,struct configStruct* config){
                 }
             }
         }
+        handleTimeout(requests);
     }
     free(events);
     close(epoolFd);

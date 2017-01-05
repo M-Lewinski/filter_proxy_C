@@ -68,6 +68,11 @@ int handleRequest(struct requestStruct *reqStruct);
  */
 int handleServerResponse(struct requestStruct *reqStruct);
 
+/**
+ * Should remove all old requests and set message with 504 status to client
+ * @param requests pointer to pointer to request
+ */
+void handleTimeout(struct requestStruct **requests);
 
 /**
  * Start proxy server
