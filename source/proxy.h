@@ -12,10 +12,12 @@
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 #include "responseStatus.h"
+#include <time.h>
 
 struct requestStruct{
     int clientSoc;
     int serverSoc;
+    char *request;
     time_t time;
 };
 
@@ -37,13 +39,20 @@ int handleConsoleConnection();
  * @param serverFd server socket
  * @param epoolFd epoll handler
  */
-void handleNewConnection(int serverFd, int epoolFd);
+struct requestStruct * handleNewConnection(int serverFd, int epoolFd);
 
 /**
  * Should handle incoming request: read data, parse and filter request and make call to server;
  * @param clientFd
  */
-void handleRequest(int clientFd);
+void handleRequest(struct requestStruct *clientFd);
+
+/**
+ * Handle server response and write data to client socket
+ * @param reqStruct struct with client and server sockets
+ */
+void handleServerResponse(struct requestStruct *reqStruct);
+
 
 /**
  * Start proxy server
