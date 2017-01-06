@@ -71,7 +71,8 @@ int createAndListenServerSocket(char *port) {
 
 int handleConsoleConnection() {
     char buf[4];
-    for(int j=0;j<4;j++) buf[j]=0;
+    int j=0;
+    for(j=0;j<4;j++) buf[j]=0;
     ssize_t readed = read(0, buf, 4);
     if((readed==4) && (!strcmp("exit",buf))) return 0;
     return 1;
