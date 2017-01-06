@@ -220,10 +220,12 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     consoleEvent.data.fd = 0;
     serverInEvent.events = EPOLLIN | EPOLLET;
     consoleEvent.events = EPOLLIN;
-    if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, serverSoc, &serverInEvent)==-1 || epoll_ctl(epoolFd, EPOLL_CTL_ADD, 0, &consoleEvent)==-1){
+    if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, serverSoc, &serverInEvent)==-1){
         perror ("epoll_ctl");
         return;
     }
+    epoll_ctl(epoolFd, EPOLL_CTL_ADD, 0, &consoleEvent);
+
     int loop=1;
     while(loop){
         int n, i, k;
