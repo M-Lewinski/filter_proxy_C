@@ -50,7 +50,7 @@ void deleteRequestStruct (int requestIndex, struct requestStruct** requests);
  * @param port used in binding server socket
  * @return server socket handler
  */
-int createAndListenServerSocket(char *port);
+int createAndListenServerSocket(char *port, char *address);
 
 /**
  * Read from standard input and check if value is `exit`. It that's true return 0;
@@ -90,6 +90,6 @@ void handleTimeout(struct requestStruct **requests);
  * @param port port used in binding server socket
  * @param config with filter rules
  */
-void startProxyServer(char *port,struct configStruct* config);
+void startProxyServer(char *port, char*address, struct configStruct* config);
 
 #endif

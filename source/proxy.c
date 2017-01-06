@@ -44,11 +44,12 @@ void deleteRequestStruct (int requestIndex, struct requestStruct** requests){
     else requests[requestIndex] = requests[--connections];
 }
 
-int createAndListenServerSocket(char *port) {
+int createAndListenServerSocket(char *port, char *address) {
     struct sockaddr_in serverSocAddr;
     serverSocAddr.sin_port = htons((uint16_t) atoi(port));
     serverSocAddr.sin_family = AF_INET;
-    inet_aton(localhost, &serverSocAddr.sin_addr);
+    if(address==NULL)inet_aton(localhost, &serverSocAddr.sin_addr);
+    else inet_aton(address, &serverSocAddr.sin_addr);
 
     int serverSoc = socket(AF_INET, SOCK_STREAM ,0);
     if(serverSoc==-1){
@@ -201,11 +202,11 @@ void handleTimeout(struct requestStruct **requests) {
     //TODO REMOVE ALL OLD REQUESTS WITH TIMEOUT AND SEND MESSAGE WITH 504 status to client
 }
 
-void startProxyServer(char *port,struct configStruct* config){
+void startProxyServer(char *port, char*address, struct configStruct* config){
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
     struct requestStruct **requests = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
 
-    int serverSoc = createAndListenServerSocket(port);
+    int serverSoc = createAndListenServerSocket(port, address);
     if(serverSoc==-1) return;
 
     int epoolFd = epoll_create1(0);

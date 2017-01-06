@@ -3,12 +3,12 @@
 #include "source/proxy.h"
 
 int main(int argc, char** argv){
-    if(argc<2){
+    if(argc<3){
         fprintf(stderr,"Not enough parameters");
         return 1;
     }
     struct configStruct* config;
-    if(argc==3) config = loadConfigWithPath(argv[2]);
+    if(argc==4) config = loadConfigWithPath(argv[3]);
     else config = loadConfig();
     if(config == NULL){
         fprintf(stderr, "Loading file FAILED");
@@ -16,7 +16,7 @@ int main(int argc, char** argv){
     }
 
     puts("Starting filter proxy");
-    startProxyServer(argv[1],config);
+    startProxyServer(argv[1],argv[2], config);
 
 
     freeConfig(config);
