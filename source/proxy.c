@@ -9,17 +9,37 @@ struct requestStruct * newRequestStruct(){
     struct requestStruct *req = (struct requestStruct*)malloc(sizeof(struct requestStruct));
     req->clientSoc = -1;
     req->serverSoc = -1;
-    req->request = NULL;
+    req->clientRequest = NULL;
+    req->serverResponse = NULL;
     req->time = time(0);
     return req;
+}
+
+struct request * newRequest(){
+    struct request *req = (struct request*)malloc(sizeof(struct request));
+    req->headersCount = 0;
+    req->requestData=NULL;
+    req->headers=NULL;
+    return req;
+}
+
+void freeRequest(struct request* req){
+    int i=0;
+    for(i=0;i<req->headersCount;i++){
+        if(req->headers[i].name!=NULL)free(req->headers[i].name);
+        if(req->headers[i].value!=NULL)free(req->headers[i].value);
+    }
+    free(req->headers);
+    free(req->requestData);
 }
 
 void deleteRequestStruct (int requestIndex, struct requestStruct** requests){
     struct requestStruct *req = requests[requestIndex];
     if(req->clientSoc!=-1)close(req->clientSoc);
     if(req->serverSoc!=-1)close(req->serverSoc);
-    free(req->request);
-    free(req);
+    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
+    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
+//    free(req);
     if(requestIndex==connections-1) connections--;
     else requests[requestIndex] = requests[--connections];
 }
@@ -80,34 +100,83 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     return req;
 }
 
-char* readData(char *data, int socket){
-    //TODO CHANGE IMPLEMENTATION
-    data=(char*)malloc(3000*sizeof(char));
-    char buf[3000];
-    int j=0;
-    for (j=0;j<3000;j++)buf[j]='\0';
-
+void readData(struct request *req, int socket) {
+    int j=0,i=0,k=0, bufSize = 100, allRead=0, headersNum=0, loop=1;
+    char buf[bufSize+1];
     ssize_t read;
-    if( (read=recv(socket, buf, 3000, 0)) > 0) {
-        //TODO read headers
-        //TODO read form data
-        //TODO how to know if end of reading?
-        //TODO between headers and data we have empty line which means two \n \n characters
-        //TODO in headers we have header with content length. It should be enough to read all data.
+    int requestMem=200;
+    char *request = (char*)malloc(requestMem*sizeof(char));
+    request[0]='\0';
+
+    while( loop && ((read=recv(socket, buf, (size_t) bufSize, 0)) > 0)) {
+        buf[read]='\0';
+        if(allRead+read+1 > requestMem){
+            requestMem*=2;
+            request = (char*)realloc(request,requestMem*sizeof(char));
+        }
+        request = strcat(request,buf);
+        for(j=0;j<read;j++)
+            if(buf[j]=='\n'){
+                if((allRead>1) && (request[allRead+j-2] == '\n')) {
+                    request[allRead+j-1] = '\0';
+                    loop=0;
+                    break;
+                } else headersNum++;
+            }
+        allRead+=read;
     }
-    strcpy(data,buf);
-    return data;
+    int content_len=0;
+    char *toFree = request;
+    req->headers = (struct header*)malloc(headersNum*sizeof(struct header));
+    req->headersCount = headersNum;
+    for(i=0;i<headersNum;i++){
+        req->headers[i].name=NULL;
+        req->headers[i].value=NULL;
+        for(j=0;;j++){
+            allRead--;
+            if(request[j]=='\0') break;
+            if (request[j]=='\n'){
+                request[j] = '\0';
+                for(k=0;k<j-1;k++) {
+                    if ((request[k] == ':') && (request[k + 1] == ' ')) {
+                        request[k] = '\0';
+                        req->headers[i].value = (char *) malloc((strlen(request + k + 2) + 1) * sizeof(char));
+                        req->headers[i].value = strcpy(req->headers[i].value, request + k + 2);
+                        break;
+                    }
+                }
+                req->headers[i].name = (char*)malloc((strlen(request))*sizeof(char));
+                req->headers[i].name = strcpy(req->headers[i].name,request);
+                request = request+j+1;
+                break;
+            }
+        }
+        if(!strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
+    }
+    allRead-=2;
+    if(content_len>0) {
+        req->requestData = (char *) malloc((content_len + 1) * sizeof(char));
+        req->requestData[0]='\0';
+        if (allRead > 0) req->requestData = strcat(req->requestData, request+1);
+        content_len-=allRead;
+        while(content_len>0){
+            read = recv(socket, buf, (size_t) bufSize, 0);
+            buf[read]='\0';
+            req->requestData = strcat(req->requestData, buf);
+            content_len-=read;
+        }
+    } else req->requestData=NULL;
+
+    free(toFree);
 }
 
 int handleRequest(struct requestStruct *reqStruct) {
-    reqStruct->request = readData(reqStruct->request, reqStruct->clientSoc);
-
-    //TODO REMOVE THIS WRITE
-    write(1, reqStruct->request, strlen(reqStruct->request));
+    reqStruct->clientRequest = newRequest();
+    readData(reqStruct->clientRequest, reqStruct->clientSoc);
 
 
     //TODO CHECK BLOCK FILTER
-    //TODO IF PAGE IS BLOCKED WE DO NOT NEED TO CALL SERVER. WE SHOULD RETURN ONLY response403, cloce socket and free memory
+    //TODO IF PAGE IS BLOCKED WE DO NOT NEED TO CALL SERVER. WE SHOULD RETURN ONLY response403, close socket and free memory
 
     //TODO MODIFY REQUEST USING FILTERS
 
@@ -156,7 +225,7 @@ void startProxyServer(char *port,struct configStruct* config){
     int loop=1;
     while(loop){
         int n, i, k;
-        n = epoll_wait(epoolFd, events, 100, 5000);
+        n = epoll_wait(epoolFd, events, max_events, 5000);
         if(n>(int)(max_events*0.8)){
             max_events*=2;
             events = realloc(events,max_events*sizeof(struct epoll_event));

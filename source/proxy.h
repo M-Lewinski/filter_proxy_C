@@ -14,10 +14,21 @@
 #include "responseStatus.h"
 #include <time.h>
 
+struct request{
+    struct header* headers;
+    int headersCount;
+    char *requestData;
+};
+struct header{
+    char* name;
+    char* value;
+};
+
 struct requestStruct{
     int clientSoc;
     int serverSoc;
-    char *request;
+    struct request* clientRequest;
+    struct request* serverResponse;
     time_t time;
 };
 
