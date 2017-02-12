@@ -13,30 +13,8 @@
 #include <sys/epoll.h>
 #include "responseStatus.h"
 #include <time.h>
-
-struct request{
-    struct header* headers;
-    int headersCount;
-    char *requestData;
-};
-struct header{
-    char* name;
-    char* value;
-};
-
-struct requestStruct{
-    int clientSoc;
-    int serverSoc;
-    struct request* clientRequest;
-    struct request* serverResponse;
-    time_t time;
-};
-
-/**
- * Create new request struct and alocate memmory
- * @return pointer to request struct
- */
-struct requestStruct * newRequestStruct();
+#include "rule.h"
+#include "request.h"
 
 /**
  * Close sockets, free memory and delete request struct from requests array

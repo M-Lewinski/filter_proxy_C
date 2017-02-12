@@ -7,4 +7,4 @@ include_directories(${SOURCE})
 
 aux_source_directory(. MAIN)
 
-add_executable(${PROJECT_NAME} ${MAIN} ${SOURCE})
+add_executable(${PROJECT_NAME} ${MAIN} ${SOURCE} source/rule.h source/rule.c source/request.h source/request.c)

@@ -22,7 +22,6 @@ char *notImplemented = "HTTP/1.1 404\r\n"
         "This was not implemented\r\n"
         "</BODY></HTML>";
 
-//TODO CHANGE PROXY Timeout message
 char* proxyTimeout = "HTTP/1.1 504\r\n"
         "Location: proxy\r\n"
         "Content-Type: text/html; charset=UTF-8\r\n"
