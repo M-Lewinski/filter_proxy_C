@@ -1,27 +1,9 @@
 #include "proxy.h"
 
-char *localhost = (char*)"127.0.0.1";
 int max_events = 256;
 int connections = 0;
 int maxConnections = 256;
-
-struct requestStruct * newRequestStruct(){
-    struct requestStruct *req = (struct requestStruct*)malloc(sizeof(struct requestStruct));
-    req->clientSoc = -1;
-    req->serverSoc = -1;
-    req->clientRequest = NULL;
-    req->serverResponse = NULL;
-    req->time = time(0);
-    return req;
-}
-
-struct request * newRequest(){
-    struct request *req = (struct request*)malloc(sizeof(struct request));
-    req->headersCount = 0;
-    req->requestData=NULL;
-    req->headers=NULL;
-    return req;
-}
+struct configStruct* configStructure=NULL;
 
 void freeRequest(struct request* req){
     int i=0;
@@ -48,7 +30,7 @@ int createAndListenServerSocket(char *port, char *address) {
     struct sockaddr_in serverSocAddr;
     serverSocAddr.sin_port = htons((uint16_t) atoi(port));
     serverSocAddr.sin_family = AF_INET;
-    if(address==NULL)inet_aton(localhost, &serverSocAddr.sin_addr);
+    if(address==NULL)inet_aton(INADDR_LOOPBACK, &serverSocAddr.sin_addr);
     else inet_aton(address, &serverSocAddr.sin_addr);
 
     int serverSoc = socket(AF_INET, SOCK_STREAM ,0);
@@ -176,15 +158,16 @@ int handleRequest(struct requestStruct *reqStruct) {
     reqStruct->clientRequest = newRequest();
     readData(reqStruct->clientRequest, reqStruct->clientSoc);
 
-
-    //TODO CHECK BLOCK FILTER
-    //TODO IF PAGE IS BLOCKED WE DO NOT NEED TO CALL SERVER. WE SHOULD RETURN ONLY response403, close socket and free memory
+    if(checkBlocked(configStructure,reqStruct)){
+        send(reqStruct->clientSoc,response403,strlen(response403),0);
+        return -1;
+    }
 
     //TODO MODIFY REQUEST USING FILTERS
 
     //ONLY FOR TEST
     //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO SERVER
-    send(reqStruct->clientSoc,response403,strlen(response403),0);
+    send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
     return -1;
 }
 
@@ -203,6 +186,8 @@ void handleTimeout(struct requestStruct **requests) {
 }
 
 void startProxyServer(char *port, char*address, struct configStruct* config){
+    configStructure=config;
+
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
     struct requestStruct **requests = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
 
