@@ -22,4 +22,20 @@ int checkRegex(char* toCheck, regex_t *regex);
  */
 int checkBlocked(struct configStruct *config, struct requestStruct *reqStruct);
 
+/**
+ *
+ * @param config pointer co config struct
+ * @param reqStruct pointer to request struct (request in this struct will be modified)
+ */
+void filterRequest(struct configStruct *config, struct requestStruct *reqStruct);
+
+/**
+ *
+ * @param config pointer co config struct
+ * @param reqStruct pointer to request struct (response in this struct will be modified)
+ */
+void filterResponse(struct configStruct *config, struct requestStruct *reqStruct);
+
+
+
 #endif //FILTER_PROXY_C_RULE_H

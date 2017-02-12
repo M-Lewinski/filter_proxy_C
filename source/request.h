@@ -11,8 +11,8 @@ struct request{
     char *requestData;
 };
 struct header{
-    char* name;
-    char* value;
+    char name[60];
+    char *value;
 };
 
 struct requestStruct{
