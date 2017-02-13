@@ -4,6 +4,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct request{
     struct headerCookie* headers;
@@ -32,6 +33,7 @@ struct requestStruct{
  * @return pointer to request structure
  */
 struct requestStruct * newRequestStruct();
+
 /**
  * Create new request and allocate memory
  * @return pointer to request
