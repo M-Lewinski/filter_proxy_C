@@ -6,13 +6,17 @@
 #include <stdlib.h>
 
 struct request{
-    struct header* headers;
+    struct headerCookie* headers;
+    struct headerCookie* cookies;
     int headersCount;
+    int cookiesCount;
     char *requestData;
 };
-struct header{
-    char name[60];
+
+struct headerCookie{
+    char *name;
     char *value;
+    char *cookieAttr;
 };
 
 struct requestStruct{
@@ -33,5 +37,13 @@ struct requestStruct * newRequestStruct();
  * @return pointer to request
  */
 struct request * newRequest();
+
+/**
+ *
+ * @param req request/response structure
+ * @param type type od structure (request :  or response : 1 , different cookie header)
+ * @return request as string (to send it to server or client)
+ */
+char *requestToString(struct request req, int type);
 
 #endif //FILTER_PROXY_C_REQUEST_H

@@ -18,3 +18,9 @@ struct request * newRequest(){
     return req;
 }
 
+char *requestToString(struct request req, int type){
+    //0: request
+    //1: repsonse
+    //TODO IMPLEMENT THIS
+    return NULL;
+}

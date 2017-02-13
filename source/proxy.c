@@ -7,9 +7,15 @@ struct configStruct* configStructure=NULL;
 
 void freeRequest(struct request* req){
     int i=0;
-    for(i=0;i<req->headersCount;i++)
-        if(req->headers[i].value!=NULL) free(req->headers[i].value);
-
+    for(i=0;i<req->headersCount;i++){
+        if(req->headers[i].name!=NULL)free(req->headers[i].name);
+        if(req->headers[i].value!=NULL)free(req->headers[i].value);
+    }
+    for(i=0;i<req->cookiesCount;i++){
+        if(req->cookies[i].name!=NULL)free(req->cookies[i].name);
+        if(req->cookies[i].value!=NULL)free(req->cookies[i].value);
+        if(req->cookies[i].cookieAttr!=NULL)free(req->cookies[i].cookieAttr);
+    }
     free(req->headers);
     free(req->requestData);
 }
@@ -90,6 +96,9 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     return req;
 }
 
+/*
+ * METHOD TO FULL CHANGE
+ */
 void readData(struct request *req, int socket) {
     int j=0,i=0,k=0, bufSize = 100, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
@@ -117,10 +126,12 @@ void readData(struct request *req, int socket) {
     }
     int content_len=0;
     char *toFree = request;
-    req->headers = (struct header*)malloc(headersNum*sizeof(struct header));
+    req->headers = (struct headerCookie*)malloc(headersNum*sizeof(struct headerCookie));
     req->headersCount = headersNum;
     for(i=0;i<headersNum;i++){
+        req->headers[i].name=NULL;
         req->headers[i].value=NULL;
+        req->headers[i].cookieAttr=NULL;
         for(j=0;;j++){
             allRead--;
             if(request[j]=='\0') break;
@@ -134,7 +145,8 @@ void readData(struct request *req, int socket) {
                         break;
                     }
                 }
-                strcpy(req->headers[i].name,request);
+                req->headers[i].name = (char*)malloc((strlen(request))*sizeof(char));
+                req->headers[i].name = strcpy(req->headers[i].name,request);
                 request = request+j+1;
                 break;
             }

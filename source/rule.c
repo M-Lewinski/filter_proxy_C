@@ -37,75 +37,84 @@ int checkBlocked(struct configStruct *config, struct requestStruct *reqStruct){
     return 0;
 }
 
-void addHeader(char* name, char* value, struct request *req){
+struct headerCookie * add(char *name, char *value, struct headerCookie *headers, int *count) {
     int i=0;
-    for(i=0;i<req->headersCount;i++) if(!strcmp(name,req->headers[i].name)) return; //Check if header not exist
-    struct header newHeader;
-    strcpy(newHeader.name,name);
-    newHeader.value=(char*)malloc((strlen(name)+1)*sizeof(char));
+    for(i=0;i<*count;i++) if(!strcmp(name,headers[i].name)) return headers; //Check if header not exist
+    struct headerCookie newHeader;
+    newHeader.cookieAttr=NULL;
+    newHeader.name = (char*)malloc((strlen(name)+1)*sizeof(char));
+    newHeader.name = strcpy(newHeader.name,name);
+    newHeader.value=(char*)malloc((strlen(value)+1)*sizeof(char));
     newHeader.value=strcpy(newHeader.value,value);
-    req->headersCount++;
-    req->headers = (struct header*)realloc(req->headers,req->headersCount*sizeof(struct header));
-    req->headers[req->headersCount-1]=newHeader;
+    (*count)++;
+    headers = (struct headerCookie*)realloc(headers,(*count)*sizeof(struct headerCookie));
+    headers[(*count)-1]=newHeader;
+    return headers;
 }
 
-void delHeader(regex_t *name, char* value, struct request *req){
+struct headerCookie *del(regex_t *name, struct headerCookie *headers, int *count) {
     int i=0;
-    for(i=0;i<req->headersCount;i++)
-        if(checkRegex(req->headers[i].name,name)){
-            free(req->headers[i].value);
-            if(i!=req->headersCount-1) req->headers[i] = req->headers[req->headersCount-1];
-            req->headersCount--;
+    for(i=0;i<*count;i++)
+        if(checkRegex(headers[i].name,name)){
+            free(headers[i].value);
+            free(headers[i].name);
+            free(headers[i].cookieAttr);
+            if(i!=*count-1) headers[i] = headers[*count-1];
+            (*count)--;
         }
-    req->headers = (struct header*)realloc(req->headers,req->headersCount*sizeof(struct header));
+    return (struct headerCookie*)realloc(headers,(*count)*sizeof(struct headerCookie));
 }
 
-void chaHeader(regex_t *name, char* value, struct request *req){
+void cha(regex_t *name, char *value, struct headerCookie *headers, int *count) {
     int i=0;
-    for(i=0;i<req->headersCount;i++)
-        if(checkRegex(req->headers[i].name,name)){
-            if(strlen(req->headers[i].value) < strlen(value))
-                req->headers[i].value = (char*)realloc(req->headers[i].value, (strlen(value)+1)*sizeof(char));
-            req->headers[i].value = strcpy(req->headers[i].value,value);
+    for(i=0;i<*count;i++)
+        if(checkRegex(headers[i].name,name)){
+            if(strlen(headers[i].value) < strlen(value))
+                headers[i].value = (char*)realloc(headers[i].value, (strlen(value)+1)*sizeof(char));
+            headers[i].value = strcpy(headers[i].value,value);
         }
 }
 
-void filterHeader(struct headersRule rule, struct request *req){
+void filterCookieHeader(struct headersRule rule, struct request *req, int headerOrCookie){
     switch (rule.type){
         case DEL:
-            delHeader(rule.nameRegex,rule.value,req);
+            if(!headerOrCookie) req->headers = del(rule.nameRegex, req->headers, &req->headersCount);
+            else req->cookies = del(rule.nameRegex, req->cookies, &req->cookiesCount);
             break;
         case CHA:
-            chaHeader(rule.nameRegex,rule.value,req);
+            if(!headerOrCookie) cha(rule.nameRegex, rule.value, req->headers, &req->headersCount);
+            else cha(rule.nameRegex, rule.value, req->cookies, &req->cookiesCount);
             break;
         case ADD:
-            addHeader(rule.namePattern,rule.value,req);
+            if(!headerOrCookie) req->headers = add(rule.namePattern, rule.value, req->headers, &req->headersCount);
+            else req->cookies = add(rule.namePattern, rule.value, req->cookies, &req->cookiesCount);
             break;
     }
 }
-void filterCookie(struct headersRule rule, struct request *req, char* cookieHeader){
-    //TODO IMPLEMENT THIS
-}
 
-void filter(struct configStruct *config, struct request *req, char* cookieHeader, char* host){
+void filter(struct configStruct *config, struct request *req, char* host){
     int i=0;
     for(i=0;i<config->headerRulesNumber;i++){
         if((config->header[i].hostNamePattern!=NULL) && (host!=NULL))
             if(!checkRegex(host,config->header[i].hostNameRegex)) break;
-
-        filterHeader(config->header[i],req);
-        filterCookie(config->header[i],req,cookieHeader);
+        filterCookieHeader(config->header[i],req, 0);
     }
+    for(i=0;i<config->cookieRulesNumber;i++){
+        if((config->cookie[i].hostNamePattern!=NULL) && (host!=NULL))
+            if(!checkRegex(host,config->cookie[i].hostNameRegex)) break;
+        filterCookieHeader(config->cookie[i],req, 1);
+    }
+
 }
 
 void filterRequest(struct configStruct *config, struct requestStruct *reqStruct){
     char *location = getHost(reqStruct->clientRequest);
-    filter(config,reqStruct->clientRequest,"Cookie",location);
+    filter(config,reqStruct->clientRequest,location);
 }
 
 void filterResponse(struct configStruct *config, struct requestStruct *reqStruct){
     char *location = getHost(reqStruct->clientRequest);
-    filter(config,reqStruct->serverResponse,"Set-Cookie",location);
+    filter(config,reqStruct->serverResponse,location);
 }
 
 
