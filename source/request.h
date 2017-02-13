@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 struct request{
     struct headerCookie* headers;
@@ -47,5 +48,19 @@ struct request * newRequest();
  * @return request as string (to send it to server or client)
  */
 char *requestToString(struct request req, int type);
+
+/**
+ * Free memory for given request struct pointer
+ * @param req pointer to request struct
+ */
+void freeRequest(struct request* req);
+
+/**
+ * Close sockets, free memory and delete request struct from requests array
+ * @param requestIndex request index in requests array
+ * @param requests pointer to pointer to request
+ */
+void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections);
+
 
 #endif //FILTER_PROXY_C_REQUEST_H

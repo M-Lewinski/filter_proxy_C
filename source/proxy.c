@@ -5,32 +5,6 @@ int connections = 0;
 int maxConnections = 256;
 struct configStruct* configStructure=NULL;
 
-void freeRequest(struct request* req){
-    int i=0;
-    for(i=0;i<req->headersCount;i++){
-        if(req->headers[i].name!=NULL)free(req->headers[i].name);
-        if(req->headers[i].value!=NULL)free(req->headers[i].value);
-    }
-    for(i=0;i<req->cookiesCount;i++){
-        if(req->cookies[i].name!=NULL)free(req->cookies[i].name);
-        if(req->cookies[i].value!=NULL)free(req->cookies[i].value);
-        if(req->cookies[i].cookieAttr!=NULL)free(req->cookies[i].cookieAttr);
-    }
-    free(req->headers);
-    free(req->requestData);
-}
-
-void deleteRequestStruct (int requestIndex, struct requestStruct** requests){
-    struct requestStruct *req = requests[requestIndex];
-    if(req->clientSoc!=-1)close(req->clientSoc);
-    if(req->serverSoc!=-1)close(req->serverSoc);
-    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
-    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-//    free(req);
-    if(requestIndex==connections-1) connections--;
-    else requests[requestIndex] = requests[--connections];
-}
-
 int createAndListenServerSocket(char *port, char *address) {
     struct sockaddr_in serverSocAddr;
     if(atoi(port) <=0 || atoi(port) > 65535){
@@ -65,13 +39,18 @@ int createAndListenServerSocket(char *port, char *address) {
 }
 
 int handleConsoleConnection() {
-    char buf[4];
+    char buf[16];
     int j=0;
-    for(j=0;j<4;j++) buf[j]=0;
-    ssize_t readed = read(0, buf, 4);
-    if((readed==4) && (!strcmp("exit",buf))) return 0;
+    for(j=0;j<16;j++) buf[j]=0;
+    ssize_t readed = read(0, buf, 16);
+    if(readed>=4 && !strcmp("exit\n",buf)) return 0;
     return 1;
 }
+
+
+
+
+
 
 struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     struct epoll_event clientEvent;
@@ -250,11 +229,11 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             } else { //Other events - read data and do sth.
                 for (k = 0; k < connections; k++){
                     if (requests[k]->clientSoc != -1 && requests[k]->clientSoc == events[i].data.fd) {
-                        if(handleRequest(requests[k])==-1) deleteRequestStruct(k,requests);
+                        if(handleRequest(requests[k])==-1) removeRequestStruct(k, requests, &connections);
                         break;
                     }
                     if (requests[k]->serverSoc != -1 && requests[k]->serverSoc == events[i].data.fd) {
-                        if(handleServerResponse(requests[k])==-1) deleteRequestStruct(k,requests);
+                        if(handleServerResponse(requests[k])==-1) removeRequestStruct(k, requests, &connections);
                         break;
                     }
                 }

@@ -20,6 +20,34 @@ struct request * newRequest(){
     return req;
 }
 
+void freeRequest(struct request* req){
+    if(req==NULL) return;
+    int i=0;
+    for(i=0;i<req->headersCount;i++){
+        if(req->headers[i].name!=NULL)free(req->headers[i].name);
+        if(req->headers[i].value!=NULL)free(req->headers[i].value);
+    }
+    for(i=0;i<req->cookiesCount;i++){
+        if(req->cookies[i].name!=NULL)free(req->cookies[i].name);
+        if(req->cookies[i].value!=NULL)free(req->cookies[i].value);
+        if(req->cookies[i].cookieAttr!=NULL)free(req->cookies[i].cookieAttr);
+    }
+    free(req->headers);
+    free(req->cookies);
+    free(req->requestData);
+}
+
+void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections){
+    struct requestStruct *req = requests[requestIndex];
+    if(req->clientSoc!=-1) close(req->clientSoc);
+    if(req->serverSoc!=-1) close(req->serverSoc);
+    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
+    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
+    free(req);
+    if(requestIndex==(*connections)-1) (*connections)--;
+    else requests[requestIndex] = requests[--(*connections)];
+}
+
 int countRequestLen(struct request req, int type){
     int len = 10, i=0;                  // 10- zapas na 'Cookie: ' nagłówek
     for(i=0; i<req.headersCount;i++)    //miejsce na nagłówki

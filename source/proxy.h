@@ -7,7 +7,6 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
@@ -15,13 +14,6 @@
 #include <time.h>
 #include "rule.h"
 #include "request.h"
-
-/**
- * Close sockets, free memory and delete request struct from requests array
- * @param requestIndex request index in requests array
- * @param requests pointer to pointer to request
- */
-void deleteRequestStruct (int requestIndex, struct requestStruct** requests);
 
 /**
  * Create server socket for given port and return it
