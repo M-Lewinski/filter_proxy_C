@@ -43,7 +43,6 @@ void removeRequestStruct(int requestIndex, struct requestStruct **requests, int 
     if(req->serverSoc!=-1) close(req->serverSoc);
     if(req->clientRequest != NULL) freeRequest(req->clientRequest);
     if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-    free(req);
     if(requestIndex==(*connections)-1) (*connections)--;
     else requests[requestIndex] = requests[--(*connections)];
 }
