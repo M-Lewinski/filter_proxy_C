@@ -63,4 +63,11 @@ void freeRequest(struct request* req);
 void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections);
 
 
+/**
+ * Send request to server. Request is created from headers
+ * @param request pointer to request struct
+ * @return new server socket or -1 if error occured
+ */
+int sendRequest(struct requestStruct *request);
+
 #endif //FILTER_PROXY_C_REQUEST_H

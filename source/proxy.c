@@ -14,7 +14,7 @@ int createAndListenServerSocket(char *port, char *address) {
     serverSocAddr.sin_port = htons((uint16_t) atoi(port));
     serverSocAddr.sin_family = AF_INET;
     if(address==NULL)inet_aton((const char *) INADDR_LOOPBACK, &serverSocAddr.sin_addr);
-    else if(inet_aton(address, &serverSocAddr.sin_addr)!=0){
+    else if(inet_aton(address, &serverSocAddr.sin_addr)==0){
         fprintf(stderr, "Invalid address");
         return -1;
     }
@@ -157,8 +157,10 @@ int handleRequest(struct requestStruct *reqStruct) {
         send(reqStruct->clientSoc,response403,strlen(response403),0);
         return -1;
     }
-    filterRequest(configStructure,reqStruct);
-
+//    filterRequest(configStructure,reqStruct);
+    if(sendRequest(reqStruct)<0){
+        return -1;
+    }
     //ONLY FOR TEST
     //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO SERVER
     send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);

@@ -1,4 +1,7 @@
+#include <sys/socket.h>
 #include "request.h"
+#include "rule.h"
+#include <netdb.h>
 
 struct requestStruct * newRequestStruct(){
     struct requestStruct *req = (struct requestStruct*)malloc(sizeof(struct requestStruct));
@@ -69,7 +72,9 @@ char *requestToString(struct request req, int type){
     for(i=0; i< req.headersCount;i++){
         if(req.headers[i].name!=NULL && strlen(req.headers[i].name)>0){
             strcat(returnString, req.headers[i].name);
-            strcat(returnString, ": ");
+            if(i!=0){
+                strcat(returnString, ": ");
+            }
         }
         if(req.headers[i].value!=NULL)
             strcat(returnString, req.headers[i].value);
@@ -93,4 +98,37 @@ char *requestToString(struct request req, int type){
     strcat(returnString,"\r\n");
     if(req.requestData!=NULL) strcat(returnString,req.requestData);
     return returnString;
+}
+
+int sendRequest(struct requestStruct *request){
+    if(request->serverSoc < 0){
+        int newServerSocket;
+        if(newServerSocket = socket(AF_INET,SOCK_STREAM,0)){
+            fprintf(stderr,"SERVER SOCKET ERROR\n");
+            return -1;
+        }
+        struct addrinfo * serverInfo, hints;
+        memset(&hints,0,sizeof(hints));
+        hints.ai_flags=0;
+        hints.ai_family=AF_UNSPEC;
+        hints.ai_socktype=SOCK_STREAM;
+        int result;
+        if ((result = getaddrinfo(getHost(request->clientRequest),"http",&hints,&serverInfo))){
+            close(newServerSocket);
+            fprintf(stderr,"GETADDRINFO: %s\n",gai_strerror(result));
+            return -1;
+        }
+        if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen)){
+            close(newServerSocket);
+            fprintf(stderr,"CONNECTION ERROR\n");
+            return -1;
+        }
+        request->serverSoc = newServerSocket;
+    }
+    char* req = requestToString(*request->clientRequest,0);
+    if(send(request->serverSoc,req,sizeof(req),0) < sizeof(req)){
+       fprintf(stderr,"SEND ERROR");
+        return -1;
+    }
+    return request->serverSoc;
 }

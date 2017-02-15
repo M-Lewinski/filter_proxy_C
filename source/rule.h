@@ -36,6 +36,10 @@ void filterRequest(struct configStruct *config, struct requestStruct *reqStruct)
  */
 void filterResponse(struct configStruct *config, struct requestStruct *reqStruct);
 
-
-
+/**
+ * Finds host name from request
+ * @param req request containing headers
+ * @return host name
+ */
+char *getHost(struct request *req);
 #endif //FILTER_PROXY_C_RULE_H
