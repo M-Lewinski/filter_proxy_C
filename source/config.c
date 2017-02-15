@@ -56,6 +56,8 @@ void freeBlockStruct(struct blockRule ruleToFree){
 }
 
 void freeConfig(struct configStruct* config){
+    if(config==NULL) return;
+
     int i;
     for(i=0;i<config->blockRulesNumber;i++)
         freeBlockStruct(config->block[i]);

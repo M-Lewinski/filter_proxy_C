@@ -5,33 +5,19 @@ int connections = 0;
 int maxConnections = 256;
 struct configStruct* configStructure=NULL;
 
-void freeRequest(struct request* req){
-    int i=0;
-    for(i=0;i<req->headersCount;i++){
-        if(req->headers[i].name!=NULL)free(req->headers[i].name);
-        if(req->headers[i].value!=NULL)free(req->headers[i].value);
-    }
-    free(req->headers);
-    free(req->requestData);
-}
-
-void deleteRequestStruct (int requestIndex, struct requestStruct** requests){
-    struct requestStruct *req = requests[requestIndex];
-    if(req->clientSoc!=-1)close(req->clientSoc);
-    if(req->serverSoc!=-1)close(req->serverSoc);
-    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
-    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-//    free(req);
-    if(requestIndex==connections-1) connections--;
-    else requests[requestIndex] = requests[--connections];
-}
-
 int createAndListenServerSocket(char *port, char *address) {
     struct sockaddr_in serverSocAddr;
+    if(atoi(port) <=0 || atoi(port) > 65535){
+        fprintf(stderr, "Invalid port number");
+        return -1;
+    }
     serverSocAddr.sin_port = htons((uint16_t) atoi(port));
     serverSocAddr.sin_family = AF_INET;
-    if(address==NULL)inet_aton(INADDR_LOOPBACK, &serverSocAddr.sin_addr);
-    else inet_aton(address, &serverSocAddr.sin_addr);
+    if(address==NULL)inet_aton((const char *) INADDR_LOOPBACK, &serverSocAddr.sin_addr);
+    else if(inet_aton(address, &serverSocAddr.sin_addr)!=0){
+        fprintf(stderr, "Invalid address");
+        return -1;
+    }
 
     int serverSoc = socket(AF_INET, SOCK_STREAM ,0);
     if(serverSoc==-1){
@@ -53,13 +39,18 @@ int createAndListenServerSocket(char *port, char *address) {
 }
 
 int handleConsoleConnection() {
-    char buf[4];
+    char buf[16];
     int j=0;
-    for(j=0;j<4;j++) buf[j]=0;
-    ssize_t readed = read(0, buf, 4);
-    if((readed==4) && (!strcmp("exit",buf))) return 0;
+    for(j=0;j<16;j++) buf[j]=0;
+    ssize_t readed = read(0, buf, 16);
+    if(readed>=4 && !strcmp("exit\n",buf)) return 0;
     return 1;
 }
+
+
+
+
+
 
 struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     struct epoll_event clientEvent;
@@ -84,6 +75,9 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     return req;
 }
 
+/*
+ * METHOD TO FULL CHANGE
+ */
 void readData(struct request *req, int socket) {
     int j=0,i=0,k=0, bufSize = 100, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
@@ -111,11 +105,12 @@ void readData(struct request *req, int socket) {
     }
     int content_len=0;
     char *toFree = request;
-    req->headers = (struct header*)malloc(headersNum*sizeof(struct header));
+    req->headers = (struct headerCookie*)malloc(headersNum*sizeof(struct headerCookie));
     req->headersCount = headersNum;
     for(i=0;i<headersNum;i++){
         req->headers[i].name=NULL;
         req->headers[i].value=NULL;
+        req->headers[i].cookieAttr=NULL;
         for(j=0;;j++){
             allRead--;
             if(request[j]=='\0') break;
@@ -162,8 +157,7 @@ int handleRequest(struct requestStruct *reqStruct) {
         send(reqStruct->clientSoc,response403,strlen(response403),0);
         return -1;
     }
-
-    //TODO MODIFY REQUEST USING FILTERS
+    filterRequest(configStructure,reqStruct);
 
     //ONLY FOR TEST
     //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO SERVER
@@ -174,7 +168,7 @@ int handleRequest(struct requestStruct *reqStruct) {
 int handleServerResponse(struct requestStruct *reqStruct) {
     //TODO READ DATA FROM SERVER
 
-    //TODO FILTER IF WE WANT TO IMPLEMENT FILTERING ON THIS LEVEL
+    filterResponse(configStructure, reqStruct);
 
     //TODO WRITE RESPONSE TO CLIENT
     //Hmnn, it should always return -1
@@ -235,11 +229,11 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             } else { //Other events - read data and do sth.
                 for (k = 0; k < connections; k++){
                     if (requests[k]->clientSoc != -1 && requests[k]->clientSoc == events[i].data.fd) {
-                        if(handleRequest(requests[k])==-1) deleteRequestStruct(k,requests);
+                        if(handleRequest(requests[k])==-1) removeRequestStruct(k, requests, &connections);
                         break;
                     }
                     if (requests[k]->serverSoc != -1 && requests[k]->serverSoc == events[i].data.fd) {
-                        if(handleServerResponse(requests[k])==-1) deleteRequestStruct(k,requests);
+                        if(handleServerResponse(requests[k])==-1) removeRequestStruct(k, requests, &connections);
                         break;
                     }
                 }
