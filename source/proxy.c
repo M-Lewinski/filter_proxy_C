@@ -1,5 +1,7 @@
 #include <wchar.h>
 #include "proxy.h"
+#include <errno.h>
+#include <string.h>
 
 int max_events = 512;
 int connections = 0;
@@ -215,4 +217,23 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
     }
     free(req);
     return request->serverSoc;
+}
+
+int sendAll(int socket,char *text){
+    if (strlen(text) == 0){
+        fprintf(stderr,"EMPTY BUFFER\n");
+        return -1;
+    }
+    char* buffer = text;
+    int lenght = sizeof(buffer);
+    while(lenght > 0){
+        int sentBytes = send(socket,buffer,lenght,0);
+        if (sentBytes < 0){
+            fprintf(stderr,"ERROR SEND: %s\n",strerror(errno));
+            return -1;
+        }
+        buffer += sentBytes;
+        lenght -= sentBytes;
+    }
+    return 1;
 }
