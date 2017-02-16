@@ -1,12 +1,13 @@
 #include "request.h"
 
-struct requestStruct newRequestStruct(){
-    struct requestStruct req;
-    req.clientSoc = -1;
-    req.serverSoc = -1;
-    req.clientRequest = NULL;
-    req.serverResponse = NULL;
-    req.time = time(0);
+
+struct requestStruct * newRequestStruct(){
+    struct requestStruct *req = (struct requestStruct*)malloc(sizeof(struct requestStruct));
+    req->clientSoc = -1;
+    req->serverSoc = -1;
+    req->clientRequest = NULL;
+    req->serverResponse = NULL;
+    req->time = time(0);
     return req;
 }
 
@@ -37,16 +38,16 @@ void freeRequest(struct request* req){
     if(req->requestData!=NULL) free(req->requestData);
 }
 
-void removeRequestStruct(struct requestStruct req, struct requestStruct *requests, int *connections){
+void removeRequestStruct(struct requestStruct req, struct requestStruct **requests, int *connections){
     if(req.clientSoc!=-1) close(req.clientSoc);
     if(req.serverSoc!=-1) close(req.serverSoc);
     if(req.clientRequest != NULL) freeRequest(req.clientRequest);
     if(req.serverResponse != NULL) freeRequest(req.serverResponse);
-    if(req.clientSoc==requests[(*connections)-1].clientSoc) (*connections)--;
+    if(req.clientSoc==requests[(*connections)-1]->clientSoc) (*connections)--;
     else {
         int i;
         for (i = 0; i < *connections; i++) {
-            if(req.clientSoc == requests[i].clientSoc) {
+            if(req.clientSoc == requests[i]->clientSoc) {
                 requests[i]=requests[--(*connections)];
                 break;
             }
@@ -117,6 +118,7 @@ int readData(struct request *req, int socket, time_t timeR) {
     while(loop) {
         read=recv(socket, buf, (size_t) bufSize, 0);
         if(read<0){
+            fprintf(stderr,"READ ERROR: %s\n",strerror(errno));
             free(request);
             fprintf(stderr,"Failed to recv form socket when reading headers: %d\n",socket);
             return -1;

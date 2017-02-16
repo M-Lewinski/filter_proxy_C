@@ -1,7 +1,6 @@
 #include <wchar.h>
 #include "proxy.h"
-#include <errno.h>
-#include <string.h>
+
 
 int max_events = 512;
 int connections = 0;
@@ -53,7 +52,7 @@ int handleConsoleConnection() {
 
 int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct) {
     struct epoll_event clientEvent;
-    int clientLen;
+    int clientLen = 0;
     struct sockaddr_in clientAddr;
     int clientFd = accept(serverFd, (struct sockaddr *) &clientAddr, (socklen_t *) &clientLen);
     if(clientFd==-1){
@@ -82,20 +81,22 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
         send(reqStruct->clientSoc,response403,strlen(response403),0);
         return -1;
     }
-    filterRequest(configStructure,reqStruct);
-    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
-        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
-        return -1;
-    }
+//    filterRequest(configStructure,reqStruct);
+//    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
+//        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
+//        return -1;
+//    }
+//    return 0;
     return 0;
 }
 
 int handleServerResponse(struct requestStruct *reqStruct) {
     reqStruct->serverResponse = newRequest();
     readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time);
-    filterResponse(configStructure, reqStruct);
+//    filterResponse(configStructure, reqStruct);
 
     char* req = requestToString(*reqStruct->serverResponse,1);
+    printf("RESPONSE :\n%s\n",req);
     sendAll(reqStruct->clientSoc,req);
     return -1;
 };
@@ -103,7 +104,7 @@ int handleServerResponse(struct requestStruct *reqStruct) {
 void startProxyServer(char *port, char*address, struct configStruct* config){
     configStructure=config;
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
-    struct requestStruct *requests = (struct requestStruct*)malloc(maxConnections * sizeof(struct requestStruct));
+    struct requestStruct **requests = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
 
     serverSoc = createAndListenServerSocket(port, address);
     if(serverSoc==-1) return;
@@ -141,15 +142,18 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             if(consoleDesc == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
             } else if(serverSoc == *(int*)events[i].data.ptr){ //Incoming connection
-                struct requestStruct req = newRequestStruct();
+                struct requestStruct* req = newRequestStruct();
 
-                if(handleNewConnection(serverSoc, epoolFd, &req) == -1) {
+                if(handleNewConnection(serverSoc, epoolFd, req) == 0) {
                     requests[connections] = req;
                     connections++;
                 }
+                else{
+                    continue;
+                }
                 if(connections >= (maxConnections-5)){
                     maxConnections*=2;
-                    requests = (struct requestStruct*)realloc(requests,maxConnections * sizeof(struct requestStruct));
+                    requests = (struct requestStruct**)realloc(requests,maxConnections * sizeof(struct requestStruct*));
                 }
             } else { //Other events - read data from client ar from server and send it to client.
                 struct requestStruct *reqPtr = (struct requestStruct *)events[i].data.ptr;
@@ -174,7 +178,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             return -1;
         }
         struct addrinfo * serverInfo, hints;
-        memset(&hints,0,sizeof(hints));
+        memset(&hints,0,sizeof hints);
         hints.ai_flags=0;
         hints.ai_family=AF_INET;
         hints.ai_socktype=SOCK_STREAM;
@@ -187,6 +191,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         printf("HOST: %s\n",hostName);
         if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
             close(newServerSocket);
+            fprintf(stderr,"GETADDRINFO ERROR\n");
             if(result == EAI_SYSTEM){
                 fprintf(stderr,"GETADDRINFO: %s\n",strerror(errno));
             } else{
@@ -215,6 +220,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         }
     }
     char* req = requestToString(*request->clientRequest,0);
+    printf("REQUEST :\n%s\n",req);
     if(sendAll(request->serverSoc,req) < 0){
         return -1;
     }
@@ -228,7 +234,7 @@ int sendAll(int socket,char *text){
         return -1;
     }
     char* buffer = text;
-    size_t i = strlen(buffer)+1;
+    size_t i = strlen(text);
     while(i > 0){
         ssize_t sentBytes = send(socket,buffer,i,0);
         if (sentBytes < 0){
