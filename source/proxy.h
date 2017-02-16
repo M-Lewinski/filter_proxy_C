@@ -13,8 +13,8 @@
 #include "responseStatus.h"
 #include <time.h>
 #include "rule.h"
-#include<stddef.h>
-#include "request.h"
+#include <stddef.h>
+#include <netdb.h>
 
 /**
  * Create server socket for given port and return it
@@ -51,16 +51,17 @@ int handleRequest(struct requestStruct *reqStruct);
 int handleServerResponse(struct requestStruct *reqStruct);
 
 /**
- * Should remove all old requests and set message with 504 status to client
- * @param requests pointer to pointer to request
- */
-void handleTimeout(struct requestStruct **requests);
-
-/**
  * Start proxy server
  * @param port port used in binding server socket
  * @param config with filter rules
  */
 void startProxyServer(char *port, char*address, struct configStruct* config);
+
+/**
+ * Send request to server. Request is created from headers
+ * @param request pointer to request struct
+ * @return new server socket or -1 if error occured
+ */
+int sendRequest(struct requestStruct *request);
 
 #endif
