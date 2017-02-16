@@ -187,7 +187,11 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         printf("HOST: %s\n",hostName);
         if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
             close(newServerSocket);
-            fprintf(stderr,"GETADDRINFO: %s\n",gai_strerror(result));
+            if(result == EAI_SYSTEM){
+                fprintf(stderr,"GETADDRINFO: %s\n",strerror(errno));
+            } else{
+                fprintf(stderr,"GETADDRINFO: %s\n",gai_strerror(result));
+            }
             return -1;
         }
         if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen)){
