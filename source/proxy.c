@@ -202,7 +202,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         request->serverSoc = newServerSocket;
         struct epoll_event serverEvent;
         serverEvent.data.ptr=request;
-        serverEvent.events = EPOLLIN;
+        serverEvent.events = EPOLLIN | EPOLLOUT;
         if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, request->serverSoc, &serverEvent)==-1){
             perror ("epoll_ctl");
             close(newServerSocket);
@@ -224,9 +224,9 @@ int sendAll(int socket,char *text){
         return -1;
     }
     char* buffer = text;
-    int i = sizeof(buffer);
+    size_t i = strlen(buffer)+1;
     while(i > 0){
-        int sentBytes = send(socket,buffer,i,0);
+        ssize_t sentBytes = send(socket,buffer,i,0);
         if (sentBytes < 0){
             fprintf(stderr,"ERROR SEND: %s\n",strerror(errno));
             return -1;

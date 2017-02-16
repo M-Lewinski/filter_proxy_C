@@ -32,9 +32,9 @@ void freeRequest(struct request* req){
         if(req->cookies[i].value!=NULL)free(req->cookies[i].value);
         if(req->cookies[i].cookieAttr!=NULL)free(req->cookies[i].cookieAttr);
     }
-    free(req->headers);
-    free(req->cookies);
-    free(req->requestData);
+    if(req->headers!=NULL) free(req->headers);
+    if(req->cookies!=NULL) free(req->cookies);
+    if(req->requestData!=NULL) free(req->requestData);
 }
 
 void removeRequestStruct(struct requestStruct req, struct requestStruct *requests, int *connections){
@@ -118,7 +118,7 @@ int readData(struct request *req, int socket, time_t timeR) {
         read=recv(socket, buf, (size_t) bufSize, 0);
         if(read<0){
             free(request);
-            //fprintf(stderr,"Failed to recv form socket when reading headers: %d\n",socket);
+            fprintf(stderr,"Failed to recv form socket when reading headers: %d\n",socket);
             return -1;
         }
 
@@ -147,16 +147,19 @@ int readData(struct request *req, int socket, time_t timeR) {
         req->headers[i].value=NULL;
         req->headers[i].cookieAttr=NULL;
         if(i==0) {
-            req->headers[i].value = (char *) malloc(sizeof(char) * strlen(tok));
+            req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
+            req->headers[i].value[0] = '\0';
             req->headers[i].value = strcpy(req->headers[i].value, tok);
         } else{
             for(j=0;j<strlen(tok);j++){
                 if(tok[j]==':') {
                     tok[j]='\0';
-                    req->headers[i].name = (char*) malloc(sizeof(char) * strlen(tok));
+                    req->headers[i].name = (char*) malloc(sizeof(char) * (strlen(tok)+1));
+                    req->headers[i].name[0] = '\0';
                     req->headers[i].name = strcpy(req->headers[i].name,tok);
                     tok = tok+j+2;
-                    req->headers[i].value = (char*) malloc(sizeof(char) * strlen(tok));
+                    req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
+                    req->headers[i].value[0] = '\0';
                     req->headers[i].value = strcpy(req->headers[i].value,tok);
                     break;
                 }
