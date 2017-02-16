@@ -41,7 +41,7 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd);
  * @param clientFd
  * @return -1 if we should remove response and close socket, 0 in other case
  */
-int handleRequest(struct requestStruct *reqStruct);
+int handleRequest(struct requestStruct *reqStruct, int epoolFd);
 
 /**
  * Handle server response and write data to client socket
@@ -62,6 +62,6 @@ void startProxyServer(char *port, char*address, struct configStruct* config);
  * @param request pointer to request struct
  * @return new server socket or -1 if error occured
  */
-int sendRequest(struct requestStruct *request);
+int sendRequest(struct requestStruct *request, int epoolFd);
 
 #endif

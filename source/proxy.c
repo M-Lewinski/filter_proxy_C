@@ -74,16 +74,16 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     return req;
 }
 
-int handleRequest(struct requestStruct *reqStruct) {
+int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
     reqStruct->clientRequest = newRequest();
     readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time);
-
-    if(checkBlocked(configStructure,reqStruct)){
-        send(reqStruct->clientSoc,response403,strlen(response403),0);
-        return -1;
-    }
-    filterRequest(configStructure,reqStruct);
-    if((reqStruct->serverSoc=sendRequest(reqStruct))<0){
+//
+//    if(checkBlocked(configStructure,reqStruct)){
+//        send(reqStruct->clientSoc,response403,strlen(response403),0);
+//        return -1;
+//    }
+//    filterRequest(configStructure,reqStruct);
+    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
         return -1;
     }
     return 0;
@@ -138,6 +138,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             events = realloc(events,max_events*sizeof(struct epoll_event));
         }
         for(i=0;i<n;i++){
+            printf("TEST: %d\n",*(int*)events[i].data.ptr);
             if(0 == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
             } else if(serverSoc == *(int*)events[i].data.ptr){ //Incoming connection
@@ -155,7 +156,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 struct requestStruct *reqPtr = (struct requestStruct*)(ptr-offsetof(struct requestStruct, clientSoc));
 
                 if(reqPtr->clientSoc != -1 && reqPtr->clientSoc == *(int*)events[i].data.ptr){
-                    if(handleRequest(reqPtr)==-1) removeRequestStruct(reqPtr, requests, &connections);
+                    if(handleRequest(reqPtr, epoolFd) == -1) removeRequestStruct(reqPtr, requests, &connections);
                 } else {
                     reqPtr = (struct requestStruct*)(ptr-offsetof(struct requestStruct, serverSoc));
                     if(reqPtr->serverSoc != -1 && reqPtr->serverSoc == *(int*)events[i].data.ptr)
@@ -171,7 +172,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
 
 //TODO
 //ADD EPOLL EVENT
-int sendRequest(struct requestStruct *request){
+int sendRequest(struct requestStruct *request, int epoolFd) {
     if(request->serverSoc < 0){
         int newServerSocket;
         if( (newServerSocket = socket(AF_INET,SOCK_STREAM,0)) == -1){
@@ -184,17 +185,35 @@ int sendRequest(struct requestStruct *request){
         hints.ai_family=AF_UNSPEC;
         hints.ai_socktype=SOCK_STREAM;
         int result;
-        if ((result = getaddrinfo(getHost(request->clientRequest),"http",&hints,&serverInfo))){
+        char *hostName = getHost(request->clientRequest);
+        if(hostName == NULL){
+            return -1;
+        }
+        hostName[sizeof(hostName)-3] = '\0';
+        printf("HOST: %s\n",hostName);
+        if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
             close(newServerSocket);
             fprintf(stderr,"GETADDRINFO: %s\n",gai_strerror(result));
             return -1;
         }
         if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen)){
+            freeaddrinfo(serverInfo);
             close(newServerSocket);
             fprintf(stderr,"CONNECTION ERROR\n");
             return -1;
         }
+        freeaddrinfo(serverInfo);
+        printf("NEW SERVER: %d\n",newServerSocket);
         request->serverSoc = newServerSocket;
+        struct epoll_event serverEvent;
+        serverEvent.data.ptr=&request->serverSoc;
+        serverEvent.events = EPOLLIN;
+        if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, request->serverSoc, &serverEvent)==-1){
+            perror ("epoll_ctl");
+            close(newServerSocket);
+            request->serverSoc = -1;
+            return request->serverSoc;
+        }
     }
     char* req = requestToString(*request->clientRequest,0);
     if(send(request->serverSoc,req,sizeof(req),0) < sizeof(req)){

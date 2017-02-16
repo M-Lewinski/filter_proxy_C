@@ -8,7 +8,7 @@ char *response403 = "HTTP/1.1 403\r\n"
         "<HTML><HEAD><meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">\r\n"
         "<TITLE>403 Forbidden</TITLE></HEAD><BODY>\r\n"
         "<H1>403 Forbidden</H1>\r\n"
-        "This page was blocked by proxy server, contact to your admin\r\n"
+        "This page was blocked by proxy server, contact your admin for more information\r\n"
         "</BODY></HTML>";
 
 char *notImplemented = "HTTP/1.1 404\r\n"
