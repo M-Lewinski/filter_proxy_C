@@ -58,13 +58,13 @@ int countRequestLen(struct request req, int type){
     int len = 10, i=0;                  // 10- zapas na 'Cookie: ' nagłówek
     for(i=0; i<req.headersCount;i++)    //miejsce na nagłówki
         len+=(req.headers[i].name!=NULL?strlen(req.headers[i].name):0)+
-             (req.headers[i].value!=NULL?strlen(req.headers[i].value):0)+3;
+             (req.headers[i].value!=NULL?strlen(req.headers[i].value):0)+4;
     for(i=0; i<req.cookiesCount;i++)    //miejsce na ciasteczka (Nagłówek 'Cookie' dla type=0 oraz wiele 'Set-Cookie' dla type=1)
         len+=(req.cookies[i].name!=NULL?strlen(req.cookies[i].name):0)+
              (req.cookies[i].value!=NULL?strlen(req.cookies[i].value):0)+
-             (((req.cookies[i].cookieAttr!=NULL) && (type==1))?strlen(req.cookies[i].cookieAttr):0)+4+
+             (((req.cookies[i].cookieAttr!=NULL) && (type==1))?strlen(req.cookies[i].cookieAttr):0)+5+
               type==1?12:0;
-    len+=2;
+    len+=4;
     len+=req.requestData!=NULL?strlen(req.requestData):0; //miesce na dane
     return len;
 }
@@ -107,15 +107,16 @@ char *requestToString(struct request req, int type){
  * METHOD TO FULL CHANGE
  */
 int readData(struct request *req, int socket, time_t timeR) {
-    int j=0,i=0, bufSize = 100, allRead=0, headersNum=0, loop=1;
+    int j=0,i=0, bufSize = 4096, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
     ssize_t read;
-    int requestMem=200;
+    int requestMem=4096;
     char *request = (char*)malloc(requestMem*sizeof(char));
     request[0]='\0';
 
     while(loop) {
         read=recv(socket, buf, (size_t) bufSize, 0);
+        printf("%s\n",buf);
         if(read<0){
             free(request);
             fprintf(stderr,"Failed to recv form socket: %d\n",socket);
@@ -127,21 +128,19 @@ int readData(struct request *req, int socket, time_t timeR) {
             requestMem*=2;
             request = (char*)realloc(request,requestMem*sizeof(char));
         }
-        request = strcat(request,buf);
+        strcat(request,buf);
+        allRead+=read;
         for(j=0;j<read;j++)
             if(buf[j]=='\n'){
-                if((allRead>1) && (request[allRead+j-2] == '\n')) {
-                    request[allRead+j-1] = '\0';
+                if((allRead>1) && (request[allRead-read+j-2] == '\n')) {
                     loop=0;
                     break;
                 } else headersNum++;
             }
-        allRead+=read;
     }
     int content_len=0;
     req->headers = (struct headerCookie*)malloc(headersNum*sizeof(struct headerCookie));
     req->headersCount = headersNum;
-
     char *ptr = request;
     char *tok = strtok_r(request,"\r\n",&ptr);
     for(i=0;tok!=NULL && i<headersNum; i++){
@@ -172,12 +171,9 @@ int readData(struct request *req, int socket, time_t timeR) {
     if(content_len>0) {
         req->requestData = (char *) malloc((content_len + 1) * sizeof(char));
         req->requestData[0]='\0';
-
-        if (ptr!=NULL && strlen(ptr)>0) req->requestData = strcat(req->requestData, ptr);
-
+        if (ptr!=NULL && strlen(ptr)>3) req->requestData = strcpy(req->requestData, ptr+3);
         content_len-=strlen(ptr);
         while(content_len>0){
-            printf("%d\n",content_len);
             read = recv(socket, buf, (size_t) bufSize, 0);
             if(read==-1){
                 free(request);
@@ -185,12 +181,11 @@ int readData(struct request *req, int socket, time_t timeR) {
                 return -1;
             }
             buf[read]='\0';
-            req->requestData = strcat(req->requestData, buf);
+            strcat(req->requestData, buf);
             content_len-=read;
         }
     } else req->requestData=NULL;
 
     free(request);
-    printf("%s",requestToString(*req,0));
     return 0;
 }
