@@ -17,7 +17,7 @@ int checkRegex(char* toCheck, regex_t *regex){
 char *getHost(struct request *req){
     int i=0;
     for(i=0;i<req->headersCount;i++) {
-        if (!strcmp(req->headers[i].name, hostHeader)) {
+        if (req->headers[i].name!=NULL && !strcmp(req->headers[i].name, hostHeader)) {
             return req->headers[i].value;
         }
     }
@@ -37,7 +37,7 @@ int checkBlocked(struct configStruct *config, struct requestStruct *reqStruct){
 
 struct headerCookie * add(char *name, char *value, struct headerCookie *headers, int *count) {
     int i=0;
-    for(i=0;i<*count;i++) if(!strcmp(name,headers[i].name)) return headers; //Check if header not exist
+    for(i=0;i<*count;i++) if(headers[i].name!=NULL && !strcmp(name,headers[i].name)) return headers; //Check if header not exist
     struct headerCookie newHeader;
     newHeader.cookieAttr=NULL;
     newHeader.name = (char*)malloc((strlen(name)+1)*sizeof(char));
