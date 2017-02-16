@@ -15,6 +15,8 @@
 #include "rule.h"
 #include <stddef.h>
 #include <netdb.h>
+#include <errno.h>
+
 
 /**
  * Create server socket for given port and return it
