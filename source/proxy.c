@@ -82,11 +82,10 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
         return -1;
     }
 //    filterRequest(configStructure,reqStruct);
-//    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
-//        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
-//        return -1;
-//    }
-//    return 0;
+    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
+        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
+        return -1;
+    }
     return 0;
 }
 
@@ -173,11 +172,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
 int sendRequest(struct requestStruct *request, int epoolFd) {
     if(request->serverSoc < 0){
         int newServerSocket;
-        if( (newServerSocket = socket(AF_INET,SOCK_STREAM,0)) == -1){
-            fprintf(stderr,"SERVER SOCKET ERROR\n");
-            return -1;
-        }
-        struct addrinfo * serverInfo, hints;
+        struct addrinfo * serverInfo, hints, *i;
         memset(&hints,0,sizeof hints);
         hints.ai_flags=0;
         hints.ai_family=AF_INET;
@@ -199,13 +194,23 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             }
             return -1;
         }
-        if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen)){
-            freeaddrinfo(serverInfo);
-            close(newServerSocket);
-            fprintf(stderr,"CONNECTION ERROR\n");
-            return -1;
+        for(i = serverInfo; i!= NULL; i = i->ai_next){
+            if( (newServerSocket = socket(i->ai_family,i->ai_socktype,i->ai_protocol)) == -1){
+                fprintf(stderr,"SERVER SOCKET ERROR\n");
+                continue;
+            }
+            if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen) == -1){
+                close(newServerSocket);
+//                fprintf(stderr,"CONNECTION ERROR\n");
+                continue;
+            }
+            break;
         }
         freeaddrinfo(serverInfo);
+        if(i == NULL){
+            fprintf(stderr,"FAILED TO CONNECT!");
+            return -1;
+        }
         printf("NEW SERVER: %d\n",newServerSocket);
 
         request->serverSoc = newServerSocket;
