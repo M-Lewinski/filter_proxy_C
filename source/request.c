@@ -39,13 +39,22 @@ void freeRequest(struct request* req){
     free(req->requestData);
 }
 
-void removeRequestStruct(struct requestStruct *req, struct requestStruct *requests, int *connections){
+void removeRequestStruct(struct requestStruct *req, struct requestStruct **requests, int *connections){
     if(req->clientSoc!=-1) close(req->clientSoc);
     if(req->serverSoc!=-1) close(req->serverSoc);
     if(req->clientRequest != NULL) freeRequest(req->clientRequest);
     if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-    if(req==&requests[(*connections)-1]) (*connections)--;
-    else req = &requests[--(*connections)];
+    if(req==requests[(*connections)-1]) (*connections)--;
+//    else {
+//        int i;
+//        for (i = 0; i < *connections; i++) {
+//            if(req == requests[i]) {
+//                requests[i]=requests[--(*connections)];
+//                break;
+//            }
+//        }
+//    }
+    //free(req);
 }
 
 int countRequestLen(struct request req, int type){
@@ -107,12 +116,12 @@ void readData(struct request *req, int socket, time_t timeR) {
     int requestMem=200;
     char *request = (char*)malloc(requestMem*sizeof(char));
     request[0]='\0';
-//    time_t waitTime = maxTimeMsc - (time(0) - timeR);
-
-    while( loop && (read=recv(socket, buf, (size_t) bufSize,0))) {
-//    while( loop && ((read=recv(socket, buf, (size_t) bufSize, (int) waitTime)) > 0)) {
-//        waitTime = maxTimeMsc - (time(0) - timeR);
-//        if(waitTime<0) free(request);
+    while( loop && ((read=recv(socket, buf, (size_t) bufSize, 0)) > 0)) {
+        time_t waitTime = maxTimeMsc - (time(0) - timeR);
+        if(waitTime<0) {
+            free(request);
+            return;
+        }
 
         buf[read]='\0';
         if(allRead+read+1 > requestMem){
