@@ -2,13 +2,13 @@
 
 int maxTimeMsc = 5000;
 
-struct requestStruct * newRequestStruct(){
-    struct requestStruct *req = (struct requestStruct*)malloc(sizeof(struct requestStruct));
-    req->clientSoc = -1;
-    req->serverSoc = -1;
-    req->clientRequest = NULL;
-    req->serverResponse = NULL;
-    req->time = time(0);
+struct requestStruct newRequestStruct(){
+    struct requestStruct req;
+    req.clientSoc = -1;
+    req.serverSoc = -1;
+    req.clientRequest = NULL;
+    req.serverResponse = NULL;
+    req.time = time(0);
     return req;
 }
 
@@ -39,22 +39,21 @@ void freeRequest(struct request* req){
     free(req->requestData);
 }
 
-void removeRequestStruct(struct requestStruct *req, struct requestStruct **requests, int *connections){
-    if(req->clientSoc!=-1) close(req->clientSoc);
-    if(req->serverSoc!=-1) close(req->serverSoc);
-    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
-    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-    if(req==requests[(*connections)-1]) (*connections)--;
-//    else {
-//        int i;
-//        for (i = 0; i < *connections; i++) {
-//            if(req == requests[i]) {
-//                requests[i]=requests[--(*connections)];
-//                break;
-//            }
-//        }
-//    }
-    //free(req);
+void removeRequestStruct(struct requestStruct req, struct requestStruct *requests, int *connections){
+    if(req.clientSoc!=-1) close(req.clientSoc);
+    if(req.serverSoc!=-1) close(req.serverSoc);
+    if(req.clientRequest != NULL) freeRequest(req.clientRequest);
+    if(req.serverResponse != NULL) freeRequest(req.serverResponse);
+    if(req.clientSoc==requests[(*connections)-1].clientSoc) (*connections)--;
+    else {
+        int i;
+        for (i = 0; i < *connections; i++) {
+            if(req.clientSoc == requests[i].clientSoc) {
+                requests[i]=requests[--(*connections)];
+                break;
+            }
+        }
+    }
 }
 
 int countRequestLen(struct request req, int type){
@@ -124,6 +123,7 @@ void readData(struct request *req, int socket, time_t timeR) {
         }
 
         buf[read]='\0';
+        printf("%s\n",buf);
         if(allRead+read+1 > requestMem){
             requestMem*=2;
             request = (char*)realloc(request,requestMem*sizeof(char));

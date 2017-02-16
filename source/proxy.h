@@ -34,7 +34,7 @@ int handleConsoleConnection();
  * @param serverFd server socket
  * @param epoolFd epoll handler
  */
-struct requestStruct * handleNewConnection(int serverFd, int epoolFd);
+int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct);
 
 /**
  * Should handle incoming request: read data, parse and filter request and make call to server;

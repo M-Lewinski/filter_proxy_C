@@ -16,8 +16,7 @@ int createAndListenServerSocket(char *port, char *address) {
     }
     serverSocAddr.sin_port = htons((uint16_t) atoi(port));
     serverSocAddr.sin_family = AF_INET;
-    if(address==NULL)inet_aton((const char *) INADDR_LOOPBACK, &serverSocAddr.sin_addr);
-    else if(inet_aton(address, &serverSocAddr.sin_addr)==0){
+    if(inet_aton(address, &serverSocAddr.sin_addr)==0){
         fprintf(stderr, "Invalid address");
         return -1;
     }
@@ -50,7 +49,7 @@ int handleConsoleConnection() {
     return 1;
 }
 
-struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
+int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct) {
     struct epoll_event clientEvent;
     int clientLen;
     struct sockaddr_in clientAddr;
@@ -58,20 +57,19 @@ struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     if(clientFd==-1){
         fprintf(stderr, "Failed to accept connection: ");
         perror("accept");
-        return NULL;
+        return -1;
     }
-    struct requestStruct *req = newRequestStruct();
-    req->clientSoc=clientFd;
+    pStruct->clientSoc=clientFd;
 
-    clientEvent.data.ptr=req;
+    clientEvent.data.ptr=pStruct;
     clientEvent.events = EPOLLIN;
-    if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, req->clientSoc, &clientEvent)==-1){
+    if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, pStruct->clientSoc, &clientEvent)==-1){
         perror ("epoll_ctl");
-        free(req);
-        return NULL;
+        close(pStruct->clientSoc);
+        return -1;
     }
 
-    return req;
+    return 0;
 }
 
 int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
@@ -84,18 +82,15 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
     }
     filterRequest(configStructure,reqStruct);
     if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
+        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
         return -1;
     }
     return 0;
-//    send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
-//    return -1;
 }
 
 int handleServerResponse(struct requestStruct *reqStruct) {
-    puts("SERVER RESPONSE!");
     reqStruct->serverResponse = newRequest();
     readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time);
-
     filterResponse(configStructure, reqStruct);
 
     char* req = requestToString(*reqStruct->serverResponse,1);
@@ -106,7 +101,7 @@ int handleServerResponse(struct requestStruct *reqStruct) {
 void startProxyServer(char *port, char*address, struct configStruct* config){
     configStructure=config;
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
-    struct requestStruct **requests = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
+    struct requestStruct *requests = (struct requestStruct*)malloc(maxConnections * sizeof(struct requestStruct));
 
     serverSoc = createAndListenServerSocket(port, address);
     if(serverSoc==-1) return;
@@ -144,21 +139,22 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             if(consoleDesc == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
             } else if(serverSoc == *(int*)events[i].data.ptr){ //Incoming connection
-                struct requestStruct *req = handleNewConnection(serverSoc, epoolFd);
-                if(req != NULL) {
+                struct requestStruct req = newRequestStruct();
+
+                if(handleNewConnection(serverSoc, epoolFd, &req) == -1) {
                     requests[connections] = req;
                     connections++;
                 }
                 if(connections >= (maxConnections-5)){
                     maxConnections*=2;
-                    requests = (struct requestStruct**)realloc(requests,maxConnections * sizeof(struct requestStruct*));
+                    requests = (struct requestStruct*)realloc(requests,maxConnections * sizeof(struct requestStruct));
                 }
             } else { //Other events - read data from client ar from server and send it to client.
-      struct requestStruct *reqPtr = (struct requestStruct *)events[i].data.ptr;
+                struct requestStruct *reqPtr = (struct requestStruct *)events[i].data.ptr;
                 if(reqPtr->serverSoc != -1){
-                    if(handleServerResponse(reqPtr)==-1) removeRequestStruct(reqPtr, requests, &connections);
+                    if(handleServerResponse(reqPtr)==-1) removeRequestStruct(*reqPtr, requests, &connections);
                 } else if (reqPtr->clientSoc != -1){
-                    if(handleRequest(reqPtr,epoolFd)==-1) removeRequestStruct(reqPtr, requests, &connections);
+                    if(handleRequest(reqPtr,epoolFd)==-1) removeRequestStruct(*reqPtr, requests, &connections);
                 }
             }
         }
@@ -168,8 +164,6 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     close(serverSoc);
 }
 
-//TODO
-//ADD EPOLL EVENT
 int sendRequest(struct requestStruct *request, int epoolFd) {
     if(request->serverSoc < 0){
         int newServerSocket;
@@ -180,14 +174,14 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         struct addrinfo * serverInfo, hints;
         memset(&hints,0,sizeof(hints));
         hints.ai_flags=0;
-        hints.ai_family=AF_UNSPEC;
+        hints.ai_family=AF_INET;
         hints.ai_socktype=SOCK_STREAM;
         int result;
         char *hostName = getHost(request->clientRequest);
         if(hostName == NULL){
+            close(newServerSocket);
             return -1;
         }
-        hostName[sizeof(hostName)-3] = '\0';
         printf("HOST: %s\n",hostName);
         if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
             close(newServerSocket);
@@ -202,6 +196,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         }
         freeaddrinfo(serverInfo);
         printf("NEW SERVER: %d\n",newServerSocket);
+
         request->serverSoc = newServerSocket;
         struct epoll_event serverEvent;
         serverEvent.data.ptr=request;
@@ -218,5 +213,6 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         fprintf(stderr,"SEND ERROR");
         return -1;
     }
+    free(req);
     return request->serverSoc;
 }

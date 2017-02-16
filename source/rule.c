@@ -16,14 +16,12 @@ int checkRegex(char* toCheck, regex_t *regex){
 
 char *getHost(struct request *req){
     int i=0;
-    char *location=NULL;
     for(i=0;i<req->headersCount;i++) {
         if (!strcmp(req->headers[i].name, hostHeader)) {
-            location = req->headers[i].value;
-            break;
+            return req->headers[i].value;
         }
     }
-    return location;
+    return NULL;
 }
 
 int checkBlocked(struct configStruct *config, struct requestStruct *reqStruct){

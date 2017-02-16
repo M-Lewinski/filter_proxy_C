@@ -37,7 +37,7 @@ extern int maxTimeMsc;
  * Create new request structure and allocate memory
  * @return pointer to request structure
  */
-struct requestStruct * newRequestStruct();
+struct requestStruct newRequestStruct();
 
 /**
  * Create new request and allocate memory
@@ -64,7 +64,7 @@ void freeRequest(struct request* req);
  * @param requestIndex request index in requests array
  * @param requests pointer to pointer to request
  */
-void removeRequestStruct(struct requestStruct *requestIndex, struct requestStruct **requests, int *connections);
+void removeRequestStruct(struct requestStruct requestIndex, struct requestStruct *requests, int *connections);
 
 void readData(struct request *req, int socket, time_t timeR);
 
