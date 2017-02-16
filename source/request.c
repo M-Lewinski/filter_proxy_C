@@ -1,5 +1,7 @@
 #include "request.h"
 
+int maxTimeMsc = 5000;
+
 struct requestStruct * newRequestStruct(){
     struct requestStruct *req = (struct requestStruct*)malloc(sizeof(struct requestStruct));
     req->clientSoc = -1;
@@ -37,14 +39,13 @@ void freeRequest(struct request* req){
     free(req->requestData);
 }
 
-void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections){
-    struct requestStruct *req = requests[requestIndex];
+void removeRequestStruct(struct requestStruct *req, struct requestStruct *requests, int *connections){
     if(req->clientSoc!=-1) close(req->clientSoc);
     if(req->serverSoc!=-1) close(req->serverSoc);
     if(req->clientRequest != NULL) freeRequest(req->clientRequest);
     if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-    if(requestIndex==(*connections)-1) (*connections)--;
-    else requests[requestIndex] = requests[--(*connections)];
+    if(req==&requests[(*connections)-1]) (*connections)--;
+    else req = &requests[--(*connections)];
 }
 
 int countRequestLen(struct request req, int type){
@@ -69,7 +70,7 @@ char *requestToString(struct request req, int type){
     for(i=0; i< req.headersCount;i++){
         if(req.headers[i].name!=NULL && strlen(req.headers[i].name)>0){
             strcat(returnString, req.headers[i].name);
-            strcat(returnString, ": ");
+                strcat(returnString, ": ");
         }
         if(req.headers[i].value!=NULL)
             strcat(returnString, req.headers[i].value);
@@ -93,4 +94,83 @@ char *requestToString(struct request req, int type){
     strcat(returnString,"\r\n");
     if(req.requestData!=NULL) strcat(returnString,req.requestData);
     return returnString;
+}
+
+
+/*
+ * METHOD TO FULL CHANGE
+ */
+void readData(struct request *req, int socket, time_t timeR) {
+    int j=0,i=0,k=0, bufSize = 100, allRead=0, headersNum=0, loop=1;
+    char buf[bufSize+1];
+    ssize_t read;
+    int requestMem=200;
+    char *request = (char*)malloc(requestMem*sizeof(char));
+    request[0]='\0';
+    time_t waitTime = maxTimeMsc - (time(0) - timeR);
+
+    while( loop && ((read=recv(socket, buf, (size_t) bufSize, (int) waitTime)) > 0)) {
+        waitTime = maxTimeMsc - (time(0) - timeR);
+        if(waitTime<0) free(request);
+
+        buf[read]='\0';
+        if(allRead+read+1 > requestMem){
+            requestMem*=2;
+            request = (char*)realloc(request,requestMem*sizeof(char));
+        }
+        request = strcat(request,buf);
+        for(j=0;j<read;j++)
+            if(buf[j]=='\n'){
+                if((allRead>1) && (request[allRead+j-2] == '\n')) {
+                    request[allRead+j-1] = '\0';
+                    loop=0;
+                    break;
+                } else headersNum++;
+            }
+        allRead+=read;
+    }
+    int content_len=0;
+    char *toFree = request;
+    req->headers = (struct headerCookie*)malloc(headersNum*sizeof(struct headerCookie));
+    req->headersCount = headersNum;
+    for(i=0;i<headersNum;i++){
+        req->headers[i].name=NULL;
+        req->headers[i].value=NULL;
+        req->headers[i].cookieAttr=NULL;
+        for(j=0;;j++){
+            allRead--;
+            if(request[j]=='\0') break;
+            if (request[j]=='\n'){
+                request[j] = '\0';
+                for(k=0;k<j-1;k++) {
+                    if ((request[k] == ':') && (request[k + 1] == ' ')) {
+                        request[k] = '\0';
+                        req->headers[i].value = (char *) malloc((strlen(request + k + 2) + 1) * sizeof(char));
+                        req->headers[i].value = strcpy(req->headers[i].value, request + k + 2);
+                        break;
+                    }
+                }
+                req->headers[i].name = (char*)malloc((strlen(request))*sizeof(char));
+                req->headers[i].name = strcpy(req->headers[i].name,request);
+                request = request+j+1;
+                break;
+            }
+        }
+        if(!strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
+    }
+    allRead-=2;
+    if(content_len>0) {
+        req->requestData = (char *) malloc((content_len + 1) * sizeof(char));
+        req->requestData[0]='\0';
+        if (allRead > 0) req->requestData = strcat(req->requestData, request+1);
+        content_len-=allRead;
+        while(content_len>0){
+            read = recv(socket, buf, (size_t) bufSize, 0);
+            buf[read]='\0';
+            req->requestData = strcat(req->requestData, buf);
+            content_len-=read;
+        }
+    } else req->requestData=NULL;
+
+    free(toFree);
 }

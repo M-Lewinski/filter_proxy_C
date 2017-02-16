@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 struct request{
@@ -28,6 +29,9 @@ struct requestStruct{
     struct request* serverResponse;
     time_t time;
 };
+
+extern int maxTimeMsc;
+
 
 /**
  * Create new request structure and allocate memory
@@ -60,7 +64,8 @@ void freeRequest(struct request* req);
  * @param requestIndex request index in requests array
  * @param requests pointer to pointer to request
  */
-void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections);
+void removeRequestStruct(struct requestStruct *requestIndex, struct requestStruct *requests, int *connections);
 
+void readData(struct request *req, int socket, time_t timeR);
 
 #endif //FILTER_PROXY_C_REQUEST_H
