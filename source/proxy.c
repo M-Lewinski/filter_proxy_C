@@ -1,8 +1,11 @@
+#include <wchar.h>
 #include "proxy.h"
 
-int max_events = 256;
+int max_events = 512;
 int connections = 0;
 int maxConnections = 256;
+int consoleDesc = 0;
+int serverSoc = -1;
 struct configStruct* configStructure=NULL;
 
 int createAndListenServerSocket(char *port, char *address) {
@@ -47,30 +50,26 @@ int handleConsoleConnection() {
     return 1;
 }
 
-
-
-
-
-
 struct requestStruct * handleNewConnection(int serverFd, int epoolFd) {
     struct epoll_event clientEvent;
     int clientLen;
     struct sockaddr_in clientAddr;
     int clientFd = accept(serverFd, (struct sockaddr *) &clientAddr, (socklen_t *) &clientLen);
     if(clientFd==-1){
+        fprintf(stderr, "Failed to accept connection: ");
         perror("accept");
-        fprintf(stderr, "Failed to accept connection");
         return NULL;
     }
-    clientEvent.data.fd=clientFd;
-    clientEvent.events = EPOLLIN | EPOLLET;
-    if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, clientFd, &clientEvent)==-1){
-        perror ("epoll_ctl");
-        return NULL;
-    }
-
     struct requestStruct *req = newRequestStruct();
     req->clientSoc=clientFd;
+
+    clientEvent.data.ptr=&req->clientSoc;
+    clientEvent.events = EPOLLIN;
+    if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, req->clientSoc, &clientEvent)==-1){
+        perror ("epoll_ctl");
+        free(req);
+        return NULL;
+    }
 
     return req;
 }
@@ -149,6 +148,7 @@ void readData(struct request *req, int socket) {
     free(toFree);
 }
 
+//TODO
 int handleRequest(struct requestStruct *reqStruct) {
     reqStruct->clientRequest = newRequest();
     readData(reqStruct->clientRequest, reqStruct->clientSoc);
@@ -158,15 +158,16 @@ int handleRequest(struct requestStruct *reqStruct) {
         return -1;
     }
 //    filterRequest(configStructure,reqStruct);
-    if(sendRequest(reqStruct)<0){
-        return -1;
-    }
+    //if(sendRequest(reqStruct)<0){
+    //    return -1;
+    //}
     //ONLY FOR TEST
     //TODO REMOVE IT AND CREATE FUNCTION TO MAKE CALL TO SERVER
     send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
     return -1;
 }
 
+//TODO
 int handleServerResponse(struct requestStruct *reqStruct) {
     //TODO READ DATA FROM SERVER
 
@@ -177,32 +178,35 @@ int handleServerResponse(struct requestStruct *reqStruct) {
     return -1;
 };
 
+//TODO
 void handleTimeout(struct requestStruct **requests) {
     //TODO REMOVE ALL OLD REQUESTS WITH TIMEOUT AND SEND MESSAGE WITH 504 status to client
 }
 
 void startProxyServer(char *port, char*address, struct configStruct* config){
     configStructure=config;
-
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
     struct requestStruct **requests = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
 
-    int serverSoc = createAndListenServerSocket(port, address);
+    serverSoc = createAndListenServerSocket(port, address);
     if(serverSoc==-1) return;
 
     int epoolFd = epoll_create1(0);
     if (epoolFd == -1) {
         perror ("epoll_create");
+        close(serverSoc);
         return;
     }
 
     struct epoll_event serverInEvent, consoleEvent;
-    serverInEvent.data.fd = serverSoc;
-    consoleEvent.data.fd = 0;
-    serverInEvent.events = EPOLLIN | EPOLLET;
+    serverInEvent.data.ptr = &serverSoc;
+    consoleEvent.data.ptr = &consoleDesc;
+    serverInEvent.events = EPOLLIN;
     consoleEvent.events = EPOLLIN;
     if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, serverSoc, &serverInEvent)==-1){
         perror ("epoll_ctl");
+        close(serverSoc);
+        close(epoolFd);
         return;
     }
     epoll_ctl(epoolFd, EPOLL_CTL_ADD, 0, &consoleEvent);
@@ -216,9 +220,9 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             events = realloc(events,max_events*sizeof(struct epoll_event));
         }
         for(i=0;i<n;i++){
-            if(0 == events[i].data.fd){ //Handle console input to stop server
+            if(0 == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
-            } else if(serverSoc == events[i].data.fd){ //Incoming connection
+            } else if(serverSoc == *(int*)events[i].data.ptr){ //Incoming connection
                 struct requestStruct* req = handleNewConnection(serverSoc, epoolFd);
                 if(req != NULL) {
                     requests[connections] = req;
@@ -228,16 +232,16 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                     maxConnections*=2;
                     requests = realloc(requests,maxConnections * sizeof(struct requestStruct*));
                 }
-            } else { //Other events - read data and do sth.
-                for (k = 0; k < connections; k++){
-                    if (requests[k]->clientSoc != -1 && requests[k]->clientSoc == events[i].data.fd) {
-                        if(handleRequest(requests[k])==-1) removeRequestStruct(k, requests, &connections);
-                        break;
-                    }
-                    if (requests[k]->serverSoc != -1 && requests[k]->serverSoc == events[i].data.fd) {
-                        if(handleServerResponse(requests[k])==-1) removeRequestStruct(k, requests, &connections);
-                        break;
-                    }
+            } else { //Other events - read data from client ar from server and send it to client.
+                int *ptr = (int*)events[i].data.ptr;
+                struct requestStruct *reqPtr = (struct requestStruct*)(ptr-offsetof(struct requestStruct, clientSoc));
+
+                if(reqPtr->clientSoc != -1 && reqPtr->clientSoc == *(int*)events[i].data.ptr){
+                    if(handleRequest(reqPtr)==-1) removeRequestStruct(reqPtr, requests, &connections);
+                } else {
+                    reqPtr = (struct requestStruct*)(ptr-offsetof(struct requestStruct, serverSoc));
+                    if(reqPtr->serverSoc != -1 && reqPtr->serverSoc == *(int*)events[i].data.ptr)
+                        if(handleServerResponse(reqPtr)==-1) removeRequestStruct(reqPtr, requests, &connections);
                 }
             }
         }

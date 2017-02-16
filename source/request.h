@@ -60,8 +60,7 @@ void freeRequest(struct request* req);
  * @param requestIndex request index in requests array
  * @param requests pointer to pointer to request
  */
-void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections);
-
+void removeRequestStruct(struct requestStruct *requestIndex, struct requestStruct **requests, int *connections);
 
 /**
  * Send request to server. Request is created from headers

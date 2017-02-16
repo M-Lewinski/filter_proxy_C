@@ -40,14 +40,14 @@ void freeRequest(struct request* req){
     free(req->requestData);
 }
 
-void removeRequestStruct(int requestIndex, struct requestStruct **requests, int *connections){
-    struct requestStruct *req = requests[requestIndex];
+void removeRequestStruct(struct requestStruct *req, struct requestStruct **requests, int *connections){
     if(req->clientSoc!=-1) close(req->clientSoc);
     if(req->serverSoc!=-1) close(req->serverSoc);
     if(req->clientRequest != NULL) freeRequest(req->clientRequest);
     if(req->serverResponse != NULL) freeRequest(req->serverResponse);
-    if(requestIndex==(*connections)-1) (*connections)--;
-    else requests[requestIndex] = requests[--(*connections)];
+    free(req);
+    if(req==requests[(*connections)-1]) (*connections)--;
+    else req = requests[--(*connections)];
 }
 
 int countRequestLen(struct request req, int type){
@@ -72,9 +72,7 @@ char *requestToString(struct request req, int type){
     for(i=0; i< req.headersCount;i++){
         if(req.headers[i].name!=NULL && strlen(req.headers[i].name)>0){
             strcat(returnString, req.headers[i].name);
-            if(i!=0){
                 strcat(returnString, ": ");
-            }
         }
         if(req.headers[i].value!=NULL)
             strcat(returnString, req.headers[i].value);

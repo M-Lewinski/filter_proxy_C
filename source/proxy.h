@@ -13,6 +13,7 @@
 #include "responseStatus.h"
 #include <time.h>
 #include "rule.h"
+#include<stddef.h>
 #include "request.h"
 
 /**
