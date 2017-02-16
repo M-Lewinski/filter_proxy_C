@@ -64,4 +64,13 @@ void startProxyServer(char *port, char*address, struct configStruct* config);
  */
 int sendRequest(struct requestStruct *request, int epoolFd);
 
+/**
+ *
+ * @param socket socket to which message will be send
+ * @param text message which will be send
+ * @return positive if succesfull, negative if failed
+ */
+int sendAll(int socket,char *text);
+
+
 #endif
