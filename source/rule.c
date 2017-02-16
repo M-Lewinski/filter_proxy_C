@@ -53,7 +53,7 @@ struct headerCookie * add(char *name, char *value, struct headerCookie *headers,
 struct headerCookie *del(regex_t *name, struct headerCookie *headers, int *count) {
     int i=0;
     for(i=0;i<*count;i++)
-        if(checkRegex(headers[i].name,name)){
+        if(headers[i].name!=NULL && checkRegex(headers[i].name,name)){
             free(headers[i].value);
             free(headers[i].name);
             free(headers[i].cookieAttr);
@@ -66,7 +66,7 @@ struct headerCookie *del(regex_t *name, struct headerCookie *headers, int *count
 void cha(regex_t *name, char *value, struct headerCookie *headers, int *count) {
     int i=0;
     for(i=0;i<*count;i++)
-        if(checkRegex(headers[i].name,name)){
+        if(headers[i].name!=NULL && checkRegex(headers[i].name,name)){
             if(strlen(headers[i].value) < strlen(value))
                 headers[i].value = (char*)realloc(headers[i].value, (strlen(value)+1)*sizeof(char));
             headers[i].value = strcpy(headers[i].value,value);
