@@ -82,14 +82,13 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
         return -1;
     }
     filterRequest(configStructure,reqStruct);
-    printf("%s\n",requestToString(*reqStruct->clientRequest, 0));
+    //printf("%s\n",requestToString(*reqStruct->clientRequest, 0));
 
-//    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
-//        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
-//        return -1;
-//    }
-//    return 0;
-    return -1;
+    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
+        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
+        return -1;
+    }
+    return 0;
 }
 
 int handleServerResponse(struct requestStruct *reqStruct) {
@@ -98,7 +97,7 @@ int handleServerResponse(struct requestStruct *reqStruct) {
 //    filterResponse(configStructure, reqStruct);
 
     char* req = requestToString(*reqStruct->serverResponse,1);
-    printf("RESPONSE :\n%s\n",req);
+    //printf("RESPONSE :\n%s\n",req);
     sendAll(reqStruct->clientSoc,req);
     return -1;
 };
@@ -183,12 +182,9 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         int result;
         char *hostName = getHost(request->clientRequest);
         if(hostName == NULL){
-            close(newServerSocket);
             return -1;
         }
-        printf("HOST: %s\n",hostName);
         if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
-            close(newServerSocket);
             fprintf(stderr,"GETADDRINFO ERROR\n");
             if(result == EAI_SYSTEM){
                 fprintf(stderr,"GETADDRINFO: %s\n",strerror(errno));
@@ -214,7 +210,6 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             fprintf(stderr,"FAILED TO CONNECT!");
             return -1;
         }
-        printf("NEW SERVER: %d\n",newServerSocket);
 
         request->serverSoc = newServerSocket;
         struct epoll_event serverEvent;
@@ -228,7 +223,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         }
     }
     char* req = requestToString(*request->clientRequest,0);
-    printf("REQUEST :\n%s\n",req);
+    //printf("REQUEST :\n%s\n",req);
     if(sendAll(request->serverSoc,req) < 0){
         return -1;
     }
