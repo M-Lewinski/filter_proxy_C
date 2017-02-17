@@ -26,8 +26,8 @@ void freeRequest(struct request* req){
     if(req==NULL) return;
     int i=0;
     for(i=0;i<req->headersCount;i++){
-        if(req->headers[i].name!=NULL)free(req->headers[i].name);
-        if(req->headers[i].value!=NULL)free(req->headers[i].value);
+        if(req->headers[i].name!=NULL) free(req->headers[i].name);
+        if(req->headers[i].value!=NULL) free(req->headers[i].value);
     }
     for(i=0;i<req->cookiesCount;i++){
         if(req->cookies[i].name!=NULL)free(req->cookies[i].name);
@@ -40,8 +40,8 @@ void freeRequest(struct request* req){
 }
 
 void removeRequestStruct(struct requestStruct req, struct requestStruct **requests, int *connections){
-    if(req.clientSoc!=-1) close(req.clientSoc);
-    if(req.serverSoc!=-1) close(req.serverSoc);
+    if(req.clientSoc>0) close(req.clientSoc);
+    if(req.serverSoc>0) close(req.serverSoc);
     if(req.clientRequest != NULL) freeRequest(req.clientRequest);
     if(req.serverResponse != NULL) freeRequest(req.serverResponse);
     if(req.clientSoc==requests[(*connections)-1]->clientSoc) (*connections)--;
@@ -71,7 +71,7 @@ int countRequestLen(struct request req, int type){
     return len;
 }
 
-char *requestToString(struct request req, int type){
+char *requestToString(struct request req, int *size, int type){
     int len = countRequestLen(req, type), i=0;
     char *returnString = (char*)malloc(len*sizeof(char));
     returnString[0]='\0';
@@ -101,19 +101,22 @@ char *requestToString(struct request req, int type){
     }
 
     strcat(returnString,"\r\n");
-    if(req.dataLen>0) memcpy(&returnString[strlen(returnString)], req.requestData, (size_t) req.dataLen);
+    *size= (int) strlen(returnString);
+    if(req.dataLen>0) memcpy(&returnString[*size], req.requestData, (size_t) req.dataLen);
+    *size+=req.dataLen;
     return returnString;
 }
 
 
 int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket, int bodyreaded) {
     int bufSize=4096;
-    char buf[bufSize+1];
+    char buf[bufSize];
 
     req->requestData = (char *) malloc((content_len + 1) * sizeof(char));
     req->dataLen=content_len;
 
     if (ptr!=NULL) req->requestData = memcpy(&req->requestData[0], ptr, (size_t) bodyreaded);
+
 
     while(bodyreaded<content_len){
         ssize_t read = recv(socket, buf, (size_t) bufSize, 0);
@@ -146,6 +149,7 @@ int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     else *size=-1;
     return (int) strlen(hexNum);
 }
+
 
 int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded) {
     int bodyMemmory = (4096 > bodyReaded ? 4096 : bodyReaded ), bodyLen=0;
@@ -214,7 +218,7 @@ int readData(struct request *req, int socket, time_t timeR) {
             requestMem*=2;
             request = (char*)realloc(request,requestMem*sizeof(char));
         }
-        strcat(request,buf);
+        memcpy(&request[allRead], buf, (size_t) read);
         allRead+=read;
         for(j=0;j<read;j++)
             if(buf[j]=='\n'){
@@ -228,12 +232,14 @@ int readData(struct request *req, int socket, time_t timeR) {
     int chunkType=0;
     req->headers = (struct headerCookie*)malloc(headersNum*sizeof(struct headerCookie));
     req->headersCount = headersNum;
-    char *ptr = request;
-    char *tok = strtok_r(request,"\r\n",&ptr);
-    for(i=0;tok!=NULL && i<headersNum; i++){
+    for(i=0;i<headersNum;i++){
         req->headers[i].name=NULL;
         req->headers[i].value=NULL;
         req->headers[i].cookieAttr=NULL;
+    }
+    char *ptr = request;
+    char *tok = strtok_r(request,"\r\n",&ptr);
+    for(i=0;tok!=NULL && i<headersNum; i++){
         if(i==0) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
             req->headers[i].value[0] = '\0';

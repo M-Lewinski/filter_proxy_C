@@ -106,9 +106,10 @@ int handleServerResponse(struct requestStruct *reqStruct) {
     readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time);
 //    filterResponse(configStructure, reqStruct);
 
-    char* req = requestToString(*reqStruct->serverResponse,1);
+    int size;
+    char* req = requestToString(*reqStruct->serverResponse,&size,1);
     //printf("RESPONSE :\n%s\n",req);
-    sendAll(reqStruct->clientSoc,req);
+    sendAll(reqStruct->clientSoc,req,size);
     return -1;
 };
 
@@ -227,30 +228,30 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             return -1;
         }
     }
-    char* req = requestToString(*request->clientRequest,0);
+    int size;
+    char* req = requestToString(*request->clientRequest,&size,0);
     //printf("REQUEST :\n%s\n",req);
-    if(sendAll(request->serverSoc,req) < 0){
+    if(sendAll(request->serverSoc,req,size) < 0){
         return -1;
     }
     free(req);
     return request->serverSoc;
 }
 
-int sendAll(int socket,char *text){
-    if (strlen(text) == 0){
+int sendAll(int socket,char *text, int size){
+    if (size == 0){
         fprintf(stderr,"EMPTY BUFFER\n");
         return -1;
     }
     char* buffer = text;
-    size_t i = strlen(text);
-    while(i > 0){
-        ssize_t sentBytes = send(socket,buffer,i,0);
+    while(size > 0){
+        ssize_t sentBytes = send(socket, buffer, (size_t) size, 0);
         if (sentBytes < 0){
             fprintf(stderr,"ERROR SEND: %s\n",strerror(errno));
             return -1;
         }
         buffer += sentBytes;
-        i -= sentBytes;
+        size -= sentBytes;
     }
     return 1;
 }
