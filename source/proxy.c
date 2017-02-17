@@ -84,12 +84,11 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
     filterRequest(configStructure,reqStruct);
     printf("%s\n",requestToString(*reqStruct->clientRequest, 0));
 
-//    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
-//        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
-//        return -1;
-//    }
-//    return 0;
-    return -1;
+    if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
+        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
+        return -1;
+    }
+    return 0;
 }
 
 int handleServerResponse(struct requestStruct *reqStruct) {
