@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <netdb.h>
 #include <errno.h>
-
+#include <pthread.h>
 
 /**
  * Create server socket for given port and return it
