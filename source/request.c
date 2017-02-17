@@ -16,6 +16,7 @@ struct request * newRequest(){
     req->headersCount = 0;
     req->cookiesCount = 0;
     req->requestData=NULL;
+    req->dataLen=0;
     req->headers=NULL;
     req->cookies=NULL;
     return req;
@@ -66,7 +67,7 @@ int countRequestLen(struct request req, int type){
              (((req.cookies[i].cookieAttr!=NULL) && (type==1))?strlen(req.cookies[i].cookieAttr):0)+5+
               type==1?12:0;
     len+=4;
-    len+=req.requestData!=NULL?strlen(req.requestData):0; //miesce na dane
+    len+=req.dataLen; //miesce na dane
     return len;
 }
 
@@ -98,42 +99,46 @@ char *requestToString(struct request req, int type){
             if(type==0 && i!=req.cookiesCount-1) strcat(returnString,"; ");
         }
     }
+
     strcat(returnString,"\r\n");
-    if(req.requestData!=NULL) strcat(returnString,req.requestData);
+    if(req.dataLen>0) memcpy(&returnString[strlen(returnString)], req.requestData, (size_t) req.dataLen);
     return returnString;
 }
 
 
-int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket) {
+int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket, int bodyreaded) {
     int bufSize=4096;
     char buf[bufSize+1];
 
     req->requestData = (char *) malloc((content_len + 1) * sizeof(char));
-    req->requestData[0]='\0';
-    if (ptr!=NULL && strlen(ptr)>3) req->requestData = strcpy(req->requestData, ptr+3);
-    content_len-=strlen(ptr);
-    while(content_len>0){
+    req->dataLen=content_len;
+
+    if (ptr!=NULL) req->requestData = memcpy(&req->requestData[0], ptr, (size_t) bodyreaded);
+
+    while(bodyreaded<content_len){
         ssize_t read = recv(socket, buf, (size_t) bufSize, 0);
         if(read==-1){
             fprintf(stderr,"Failed to recv form socket when reading body: %d\n",socket);
             return -1;
         }
-        buf[read]='\0';
-        strcat(req->requestData, buf);
-        content_len-=read;
+        if(read==0) return 0;
+        memcpy(&req->requestData[bodyreaded], buf, (size_t) read);
+        bodyreaded+=read;
     }
+
     return 0;
 }
 
 
 int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     int i;
-    char hexNum[10]="\0";
+    char hexNum[10];
+    hexNum[0]='\0';
     for(i=ptr ; i<bodyLen ; i++){
-        if(i>2 && body[i-1]=='\n' && body[i-2]=='\r'){
-            body[i-2]='\0';
+        if(i>2 && (body[i]=='\n') && body[i-1]=='\r'){
+            body[i-1]='\0';
             strcpy(hexNum,&body[ptr]);
-            body[i-2]='\r';
+            body[i-1]='\r';
             break;
         }
     }
@@ -142,25 +147,23 @@ int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     return (int) strlen(hexNum);
 }
 
-int readBodyIfChunked(struct request *req, char *ptr, int socket) {
-    int bodyMemmory = (int) (4096 > strlen(ptr) ? 4096 : strlen(ptr) ), bodyLen=0;
+int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded) {
+    int bodyMemmory = (4096 > bodyReaded ? 4096 : bodyReaded ), bodyLen=0;
     req->requestData = (char*)malloc(sizeof(char)*(bodyMemmory+1));
     req->requestData[0]='\0';
 
     int size = -1;
     int iptr = -1, numberS = 0;
     if (ptr!=NULL) {
-        if(strlen(ptr)>3) ptr+=3;
-        req->requestData = strcpy(req->requestData,ptr);
-        bodyLen+=strlen(ptr);
+        memcpy(req->requestData, ptr, (size_t) bodyReaded);
+        bodyLen+=bodyReaded;
         iptr = 0;
     }
     numberS = getChunkSize(iptr, &size, req->requestData, bodyLen);
 
     while(size !=0){
-
-        if(size>0 && size+3+numberS < bodyLen-iptr) {
-            iptr+=size+3+numberS;
+        if(size>0 && iptr+size+numberS+4 < bodyLen) {
+            iptr+=size+4+numberS;
             size=-1;
         }
         else {
@@ -171,19 +174,20 @@ int readBodyIfChunked(struct request *req, char *ptr, int socket) {
                 fprintf(stderr,"Failed to recv form socket when reading body: %d\n",socket);
                 return -1;
             }
+            if(read==0) return 0;
             tmpBuf[read]='\0';
             if(bodyLen+read>=bodyMemmory) {
                 bodyMemmory  += (int) (2*read);
                 req->requestData = (char*) realloc(req->requestData,sizeof(char)*(bodyMemmory+1));
             }
-            strcat(req->requestData,tmpBuf);
+            memcpy(&req->requestData[bodyLen], tmpBuf, (size_t) read);
             bodyLen+=read;
             if(iptr==-1)iptr=0;
         }
 
         numberS = getChunkSize(iptr, &size, req->requestData,bodyLen);
     }
-
+    req->dataLen=bodyLen;
     return 0;
 }
 
@@ -234,6 +238,7 @@ int readData(struct request *req, int socket, time_t timeR) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
             req->headers[i].value[0] = '\0';
             req->headers[i].value = strcpy(req->headers[i].value, tok);
+            allRead-=(strlen(tok)+2);
         } else{
             for(j=0;j<strlen(tok);j++){
                 if(tok[j]==':') {
@@ -241,10 +246,12 @@ int readData(struct request *req, int socket, time_t timeR) {
                     req->headers[i].name = (char*) malloc(sizeof(char) * (strlen(tok)+1));
                     req->headers[i].name[0] = '\0';
                     req->headers[i].name = strcpy(req->headers[i].name,tok);
+                    allRead-=(strlen(tok)+2);
                     tok = tok+j+2;
                     req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
                     req->headers[i].value[0] = '\0';
                     req->headers[i].value = strcpy(req->headers[i].value,tok);
+                    allRead-=(strlen(tok)+2);
                     break;
                 }
             }
@@ -255,17 +262,20 @@ int readData(struct request *req, int socket, time_t timeR) {
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Transfer-Encoding") && !strcmp(req->headers[i].value,"chunked")) chunkType=1;
     }
 
+    if(strlen(ptr)>3) ptr+=3;
+    else ptr=NULL;
+    allRead-=2;
+
     int status = 0;
     if(content_len>0) {
-        status = readBodyHavingConLen(content_len, req, ptr, socket);
+        status = readBodyHavingConLen(content_len, req, ptr, socket, allRead);
     } else {
         if (chunkType){
-            status = readBodyIfChunked(req, ptr, socket);
+            status = readBodyIfChunked(req, ptr, socket, allRead);
         } else {
             req->requestData=NULL;
         }
     }
-
     free(request);
     return status;
 }
