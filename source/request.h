@@ -14,7 +14,9 @@ struct request{
     struct headerCookie* cookies;
     int headersCount;
     int cookiesCount;
+
     char *requestData;
+    int dataLen;
 };
 
 struct headerCookie{
