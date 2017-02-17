@@ -72,7 +72,7 @@ int sendRequest(struct requestStruct *request, int epoolFd);
  * @param text message which will be send
  * @return positive if succesfull, negative if failed
  */
-int sendAll(int socket,char *text);
+int sendAll(int socket,char *text, int size);
 
 
 #endif

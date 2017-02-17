@@ -54,7 +54,7 @@ struct request * newRequest();
  * @param type type od structure (request :  or response : 1 , different cookie header)
  * @return request as string (to send it to server or client)
  */
-char *requestToString(struct request req, int type);
+char *requestToString(struct request req, int* size, int type);
 
 /**
  * Free memory for given request struct pointer
