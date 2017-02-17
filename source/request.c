@@ -242,21 +242,18 @@ int readData(struct request *req, int socket, time_t timeR) {
     for(i=0;tok!=NULL && i<headersNum; i++){
         if(i==0) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
-            req->headers[i].value[0] = '\0';
-            req->headers[i].value = strcpy(req->headers[i].value, tok);
+            strcpy(req->headers[i].value, tok);
             allRead-=(strlen(tok)+2);
         } else{
             for(j=0;j<strlen(tok);j++){
                 if(tok[j]==':') {
                     tok[j]='\0';
                     req->headers[i].name = (char*) malloc(sizeof(char) * (strlen(tok)+1));
-                    req->headers[i].name[0] = '\0';
-                    req->headers[i].name = strcpy(req->headers[i].name,tok);
+                    strcpy(req->headers[i].name,tok);
                     allRead-=(strlen(tok)+2);
                     tok = tok+j+2;
                     req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
-                    req->headers[i].value[0] = '\0';
-                    req->headers[i].value = strcpy(req->headers[i].value,tok);
+                    strcpy(req->headers[i].value,tok);
                     allRead-=(strlen(tok)+2);
                     break;
                 }
