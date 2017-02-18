@@ -135,14 +135,13 @@ int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int so
 
 int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     int i;
-    char hexNum[10];
+    char hexNum[10] = "";
 //    hexNum[0]='\0';
-//    hexNum[1023] = '\0';
     for(i=ptr ; i<bodyLen ; i++){
         if(i>2 && (body[i]=='\n') && body[i-1]=='\r'){
             body[i-1]='\0';
-//            strcpy(hexNum,&body[ptr]);
-            memcpy(hexNum,&body[ptr],strlen(&body[ptr])+1);
+            strcpy(hexNum,&body[ptr]);
+//            memcpy(hexNum,&body[ptr],strlen(&body[ptr])+1);
             body[i-1]='\r';
             break;
         }
@@ -205,7 +204,6 @@ int readData(struct request *req, int socket, time_t timeR) {
     int requestMem=4096;
     char *request = (char*)malloc(requestMem*sizeof(char));
     request[0]='\0';
-
     while(loop) {
         read=recv(socket, buf, (size_t) bufSize, 0);
         if(read<0){
@@ -241,8 +239,10 @@ int readData(struct request *req, int socket, time_t timeR) {
         req->headers[i].value=NULL;
         req->headers[i].cookieAttr=NULL;
     }
+
     char *ptr = request;
-    char *tok = strtok_r(request,"\r\n",&ptr);
+    char *spacer = "\r\n";
+    char *tok = strtok_r(request,spacer,&ptr);
     for(i=0;tok!=NULL && i<headersNum; i++){
         if(i==0) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
@@ -254,20 +254,20 @@ int readData(struct request *req, int socket, time_t timeR) {
                 if(tok[j]==':') {
                     tok[j]='\0';
                     req->headers[i].name = (char*) malloc(sizeof(char) * (strlen(tok)+1));
-//                    strcpy(req->headers[i].name,tok);
-                    memcpy(req->headers[i].name,tok,strlen(tok)+1);
+                    strcpy(req->headers[i].name,tok);
+//                    memcpy(req->headers[i].name,tok,strlen(tok)+1);
                     allRead-=(strlen(tok)+2);
                     tok = tok+j+2;
                     req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
-//                    strcpy(req->headers[i].value,tok);
-                    memcpy(req->headers[i].value,tok,strlen(tok)+1);
+                    strcpy(req->headers[i].value,tok);
+//                    memcpy(req->headers[i].value,tok,strlen(tok)+1);
                     allRead-=(strlen(tok)+2);
                     break;
                 }
             }
         }
 
-        if(i<headersNum-1)tok = strtok_r(ptr,"\r\n", &ptr);
+        if(i<headersNum-1)tok = strtok_r(ptr,spacer, &ptr);
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Transfer-Encoding") && !strcmp(req->headers[i].value,"chunked")) chunkType=1;
     }

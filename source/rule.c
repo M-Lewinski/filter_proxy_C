@@ -55,8 +55,11 @@ struct headerCookie *del(regex_t *name, struct headerCookie *headers, int *count
     for(i=0;i<*count;i++)
         if(headers[i].name!=NULL && checkRegex(headers[i].name,name)){
             free(headers[i].value);
+            headers[i].value = NULL;
             free(headers[i].name);
+            headers[i].name = NULL;
             free(headers[i].cookieAttr);
+            headers[i].cookieAttr = NULL;
             if(i!=*count-1) headers[i] = headers[*count-1];
             (*count)--;
         }

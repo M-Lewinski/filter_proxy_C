@@ -93,7 +93,7 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
         sendAll(reqStruct->clientSoc,response403,(int) strlen(response403)+1);
         return -1;
     }
-    filterRequest(configStructure,reqStruct);
+//    filterRequest(configStructure,reqStruct);
     //printf("%s\n",requestToString(*reqStruct->clientRequest, 0));
 
     if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
@@ -173,6 +173,10 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             }
         }
     }
+    while(connections!=0){
+        removeRequestStruct(*requests[0],requests,&connections);
+    }
+    free(requests);
     free(events);
     close(epoolFd);
     close(serverSoc);
@@ -192,7 +196,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             return -1;
         }
         if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
-            fprintf(stderr,"GETADDRINFO ERROR\n");
+            fprintf(stderr,"GETADDRINFO ERROR %s\n",hostName);
             if(result == EAI_SYSTEM){
                 fprintf(stderr,"GETADDRINFO: %s\n",strerror(errno));
             } else{
