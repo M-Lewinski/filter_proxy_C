@@ -48,7 +48,9 @@ void threadHandleNewConnection(struct requestStruct **requests, int epoolFd) {
     if(handleNewConnection(serverSoc, epoolFd, req) == 0) {
                     requests[connections] = req;
                     connections++;
-                }
+    } else{
+        free(req);
+    }
 }
 
 int handleConsoleConnection() {
@@ -88,14 +90,14 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
     readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time);
 
     if(checkBlocked(configStructure,reqStruct)){
-        send(reqStruct->clientSoc,response403,strlen(response403),0);
+        sendAll(reqStruct->clientSoc,response403,(int) strlen(response403)+1);
         return -1;
     }
     filterRequest(configStructure,reqStruct);
     //printf("%s\n",requestToString(*reqStruct->clientRequest, 0));
 
     if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){
-        send(reqStruct->clientSoc,notImplemented,strlen(notImplemented),0);
+        sendAll(reqStruct->clientSoc,notImplemented,(int) strlen(notImplemented)+1);
         return -1;
     }
     return 0;
@@ -110,6 +112,7 @@ int handleServerResponse(struct requestStruct *reqStruct) {
     char* req = requestToString(*reqStruct->serverResponse,&size,1);
     //printf("RESPONSE :\n%s\n",req);
     sendAll(reqStruct->clientSoc,req,size);
+    free(req);
     return -1;
 };
 

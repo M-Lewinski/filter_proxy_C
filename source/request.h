@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/epoll.h>
 
 struct request{
     struct headerCookie* headers;
@@ -28,6 +29,8 @@ struct headerCookie{
 struct requestStruct{
     int clientSoc;
     int serverSoc;
+    struct epoll_event clientEvent;
+    struct epoll_event serverEvent;
     struct request* clientRequest;
     struct request* serverResponse;
     time_t time;

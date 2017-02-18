@@ -196,5 +196,6 @@ int parseHeaderRule(struct configStruct* config, char** splittedLine, int header
         default:
             exit(1);
     }
+
     return 0;
 }

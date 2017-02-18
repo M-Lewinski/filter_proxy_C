@@ -18,6 +18,10 @@
 #include <errno.h>
 #include <pthread.h>
 
+struct newConnection{
+    pthread_mutex_t requestMutex;
+};
+
 /**
  * Create server socket for given port and return it
  * @param port used in binding server socket

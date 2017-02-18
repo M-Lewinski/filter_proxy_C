@@ -136,11 +136,13 @@ int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int so
 int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     int i;
     char hexNum[10];
-    hexNum[0]='\0';
+//    hexNum[0]='\0';
+//    hexNum[1023] = '\0';
     for(i=ptr ; i<bodyLen ; i++){
         if(i>2 && (body[i]=='\n') && body[i-1]=='\r'){
             body[i-1]='\0';
-            strcpy(hexNum,&body[ptr]);
+//            strcpy(hexNum,&body[ptr]);
+            memcpy(hexNum,&body[ptr],strlen(&body[ptr])+1);
             body[i-1]='\r';
             break;
         }
@@ -154,7 +156,7 @@ int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
 int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded) {
     int bodyMemmory = (4096 > bodyReaded ? 4096 : bodyReaded ), bodyLen=0;
     req->requestData = (char*)malloc(sizeof(char)*(bodyMemmory+1));
-    req->requestData[0]='\0';
+//    req->requestData[0]='\0';
 
     int size = -1;
     int iptr = -1, numberS = 0;
@@ -212,7 +214,9 @@ int readData(struct request *req, int socket, time_t timeR) {
             fprintf(stderr,"Failed to recv form socket when reading headers: %d\n",socket);
             return -1;
         }
-
+        if(read == 0){
+            break;
+        }
         buf[read]='\0';
         if(allRead+read+1 > requestMem){
             requestMem*=2;
@@ -242,18 +246,21 @@ int readData(struct request *req, int socket, time_t timeR) {
     for(i=0;tok!=NULL && i<headersNum; i++){
         if(i==0) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
-            strcpy(req->headers[i].value, tok);
+//            strcpy(req->headers[i].value, tok);
+            memcpy(req->headers[i].value,tok,strlen(tok)+1);
             allRead-=(strlen(tok)+2);
         } else{
             for(j=0;j<strlen(tok);j++){
                 if(tok[j]==':') {
                     tok[j]='\0';
                     req->headers[i].name = (char*) malloc(sizeof(char) * (strlen(tok)+1));
-                    strcpy(req->headers[i].name,tok);
+//                    strcpy(req->headers[i].name,tok);
+                    memcpy(req->headers[i].name,tok,strlen(tok)+1);
                     allRead-=(strlen(tok)+2);
                     tok = tok+j+2;
                     req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
-                    strcpy(req->headers[i].value,tok);
+//                    strcpy(req->headers[i].value,tok);
+                    memcpy(req->headers[i].value,tok,strlen(tok)+1);
                     allRead-=(strlen(tok)+2);
                     break;
                 }
@@ -264,8 +271,7 @@ int readData(struct request *req, int socket, time_t timeR) {
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Transfer-Encoding") && !strcmp(req->headers[i].value,"chunked")) chunkType=1;
     }
-
-    if(strlen(ptr)>3) ptr+=3;
+    if(allRead>3) ptr+=3;
     else ptr=NULL;
     allRead-=2;
 
