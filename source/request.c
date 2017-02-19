@@ -50,12 +50,14 @@ void removeRequestStruct(struct requestStruct* req, struct requestStruct **reque
     req->alive = -1;
     struct epoll_event event;
     event.data.ptr=req;
-    event.events = EPOLLIN;
+//    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLRDHUP;
     if(req->clientSoc>0) {
         epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->clientSoc,&event);
         close(req->clientSoc);
     }
     if(req->serverSoc>0){
+//        printf("Usuniety socket: %d\n",req->serverSoc);
         epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->serverSoc,&event);
         close(req->serverSoc);
     }
@@ -148,7 +150,7 @@ int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int so
         bodyreaded+=read;
     }
 
-    return 0;
+    return 1;
 }
 
 
@@ -179,9 +181,6 @@ int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded
 
     int size = -1;
     int iptr = -1, numberS = 0;
-    if(bodyReaded!=strlen(ptr)){
-        printf("HEK! %d - %d\n",bodyReaded,strlen(ptr));
-    }
     if (ptr!=NULL) {
         memcpy(req->requestData, ptr, (size_t) bodyReaded);
         bodyLen+=bodyReaded;
@@ -216,11 +215,11 @@ int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded
         numberS = getChunkSize(iptr, &size, req->requestData,bodyLen);
     }
     req->dataLen=bodyLen;
-    return 0;
+    return 1;
 }
 
 
-int readData(struct request *req, int socket, time_t timeR) {
+int readData(struct request *req, int socket, time_t timeR, struct requestStruct *requestStruct) {
     int j=0,i=0, bufSize = 4096, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
     ssize_t read;
@@ -236,6 +235,13 @@ int readData(struct request *req, int socket, time_t timeR) {
             return -1;
         }
         if(read == 0){
+            if(socket == requestStruct->clientSoc){
+                requestStruct->clientSoc = -1;
+            } else{
+                requestStruct->serverSoc = -1;
+            }
+            close(socket);
+            socket = -1;
             break;
         }
         buf[read]='\0';
@@ -308,12 +314,12 @@ int readData(struct request *req, int socket, time_t timeR) {
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Transfer-Encoding") && !strcmp(req->headers[i].value,"chunked")) chunkType=1;
     }
-
+    if(socket == -1) return 0;
     if(allRead>3) ptr+=3;
     else ptr=NULL;
     allRead-=2;
 
-    int status = 0;
+    int status = 1;
     if(content_len>0) {
         status = readBodyHavingConLen(content_len, req, ptr, socket, allRead);
     } else {
@@ -322,6 +328,14 @@ int readData(struct request *req, int socket, time_t timeR) {
         } else {
             req->requestData=NULL;
         }
+    }
+    if(status == 0){
+        if(socket == requestStruct->clientSoc){
+            requestStruct->clientSoc = -1;
+        } else{
+            requestStruct->serverSoc = -1;
+        }
+        close(socket);
     }
     free(request);
     return status;

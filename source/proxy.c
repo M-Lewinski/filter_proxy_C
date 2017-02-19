@@ -72,7 +72,7 @@ int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct
     pStruct->clientSoc=clientFd;
 
     clientEvent.data.ptr=pStruct;
-    clientEvent.events = EPOLLIN;
+    clientEvent.events = EPOLLIN | EPOLLONESHOT;
     if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, pStruct->clientSoc, &clientEvent)==-1){
         perror ("epoll_ctl");
         close(pStruct->clientSoc);
@@ -85,7 +85,7 @@ int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct
 
 int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
     reqStruct->clientRequest = newRequest();
-    if(readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time)<0){
+    if(readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time, reqStruct) < 0){
         return -1;
     }
 
@@ -105,7 +105,7 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
 
 int handleServerResponse(struct requestStruct *reqStruct) {
     reqStruct->serverResponse = newRequest();
-    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time)<0){
+    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time, reqStruct) < 0){
         return -1;
     }
 //    filterResponse(configStructure, reqStruct);
@@ -239,7 +239,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
         struct epoll_event serverEvent;
         serverEvent.data.ptr=request;
 //        serverEvent.events = EPOLLIN | EPOLLOUT;
-        serverEvent.events = EPOLLIN;
+        serverEvent.events = EPOLLIN | EPOLLONESHOT;
         if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, request->serverSoc, &serverEvent) < 0){
             perror ("epoll_ctl");
             close(request->serverSoc);
@@ -247,6 +247,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             return -1;
         }
     }
+//    printf("Utworzony socket: %d\n",request->serverSoc);
     int size;
     char* req = requestToString(*request->clientRequest,&size,0);
     //printf("REQUEST :\n%s\n",req);
