@@ -93,7 +93,7 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
         sendAll(reqStruct->clientSoc,response403,(int) strlen(response403)+1);
         return -1;
     }
-//    filterRequest(configStructure,reqStruct);
+    filterRequest(configStructure,reqStruct);
     //printf("%s\n",requestToString(*reqStruct->clientRequest, 0));
 
     if((reqStruct->serverSoc= sendRequest(reqStruct, epoolFd)) < 0){

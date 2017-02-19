@@ -29,12 +29,9 @@ struct headerCookie{
 struct requestStruct{
     int clientSoc;
     int serverSoc;
-//    struct epoll_event* clientEvent;
-//    struct epoll_event* serverEvent;
     struct request* clientRequest;
     struct request* serverResponse;
     time_t time;
-    int alive;
 };
 
 extern int maxTimeMsc;
