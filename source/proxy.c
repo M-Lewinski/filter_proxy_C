@@ -2,9 +2,6 @@
 #include "proxy.h"
 
 
-int max_events = 512;
-int connections = 0;
-int maxConnections = 256;
 int consoleDesc = 0;
 int serverSoc = -1;
 struct configStruct* configStructure=NULL;
@@ -42,12 +39,12 @@ int createAndListenServerSocket(char *port, char *address) {
     return serverSoc;
 }
 
-void threadHandleNewConnection(struct requestStruct **requests, int epoolFd) {
+void threadHandleNewConnection(struct requestStruct **requests, int epoolFd, int *connections) {
     struct requestStruct* req = newRequestStruct();
 
     if(handleNewConnection(serverSoc, epoolFd, req) == 0) {
-                    requests[connections] = req;
-                    connections++;
+                    requests[*connections] = req;
+        (*connections)++;
     } else{
         free(req);
     }
@@ -79,15 +76,18 @@ int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct
     if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, pStruct->clientSoc, &clientEvent)==-1){
         perror ("epoll_ctl");
         close(pStruct->clientSoc);
+        pStruct->clientSoc = -1;
         return -1;
     }
-
+//    pStruct->clientEvent = &clientEvent;
     return 0;
 }
 
 int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
     reqStruct->clientRequest = newRequest();
-    readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time);
+    if(readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time)<0){
+        return -1;
+    }
 
     if(checkBlocked(configStructure,reqStruct)){
         sendAll(reqStruct->clientSoc,response403,(int) strlen(response403)+1);
@@ -105,7 +105,9 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd) {
 
 int handleServerResponse(struct requestStruct *reqStruct) {
     reqStruct->serverResponse = newRequest();
-    readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time);
+    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time)<0){
+        return -1;
+    }
 //    filterResponse(configStructure, reqStruct);
 
     int size;
@@ -118,6 +120,11 @@ int handleServerResponse(struct requestStruct *reqStruct) {
 
 void startProxyServer(char *port, char*address, struct configStruct* config){
     configStructure=config;
+    int max_events = 512;
+    int* connections = (int*)malloc(sizeof(int));
+    *connections = 0;
+    int maxConnections = 256;
+
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
     struct requestStruct **requests = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
 
@@ -130,6 +137,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
         close(serverSoc);
         return;
     }
+
 
     struct epoll_event serverInEvent, consoleEvent;
     serverInEvent.data.ptr = &serverSoc;
@@ -157,25 +165,26 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             if(consoleDesc == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
             } else if(serverSoc == *(int*)events[i].data.ptr){ //Incoming connection
-                if(connections >= (maxConnections-5)){
+                if(*connections >= (maxConnections-5)){
                     maxConnections*=2;
                     requests = (struct requestStruct**)realloc(requests,maxConnections * sizeof(struct requestStruct*));
                 }
-                threadHandleNewConnection(requests, epoolFd);
+                threadHandleNewConnection(requests, epoolFd, connections);
 
-            } else { //Other events - read data from client ar from server and send it to client.
+            } else { //Other events - read data from client and send it to server or from server and send it to client.
                 struct requestStruct *reqPtr = (struct requestStruct *)events[i].data.ptr;
                 if(reqPtr->serverSoc != -1){
-                    if(handleServerResponse(reqPtr)==-1) removeRequestStruct(*reqPtr, requests, &connections);
+                    if(handleServerResponse(reqPtr)==-1) removeRequestStruct(reqPtr, requests, connections, 0);
                 } else if (reqPtr->clientSoc != -1){
-                    if(handleRequest(reqPtr,epoolFd)==-1) removeRequestStruct(*reqPtr, requests, &connections);
+                    if(handleRequest(reqPtr,epoolFd)==-1) removeRequestStruct(reqPtr, requests, connections, 0);
                 }
             }
         }
     }
-    while(connections!=0){
-        removeRequestStruct(*requests[0],requests,&connections);
+    while(*connections!=0){
+        removeRequestStruct(requests[0], requests, connections, 0);
     }
+    free(connections);
     free(requests);
     free(events);
     close(epoolFd);
@@ -205,32 +214,35 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
             return -1;
         }
         for(i = serverInfo; i!= NULL; i = i->ai_next){
-            if( (newServerSocket = socket(i->ai_family,i->ai_socktype,i->ai_protocol)) == -1){
+            if( (newServerSocket = socket(i->ai_family,i->ai_socktype,i->ai_protocol)) < 0){
                 fprintf(stderr,"SERVER SOCKET ERROR\n");
                 continue;
             }
-            if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen) == -1){
+//            if(newServerSocket == 0){
+//                close(newServerSocket);
+//                newServerSocket = -1;
+//                continue;
+//            }
+            if(connect(newServerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen) < 0){
                 close(newServerSocket);
+                newServerSocket = -1;
 //                fprintf(stderr,"CONNECTION ERROR\n");
                 continue;
             }
             break;
         }
         freeaddrinfo(serverInfo);
-        if(i == NULL){
-            fprintf(stderr,"FAILED TO CONNECT!");
-            return -1;
-        }
         if(newServerSocket == -1){
             return -1;
         }
         request->serverSoc = newServerSocket;
         struct epoll_event serverEvent;
         serverEvent.data.ptr=request;
-        serverEvent.events = EPOLLIN | EPOLLOUT;
-        if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, request->serverSoc, &serverEvent)==-1){
+//        serverEvent.events = EPOLLIN | EPOLLOUT;
+        serverEvent.events = EPOLLIN;
+        if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, request->serverSoc, &serverEvent) < 0){
             perror ("epoll_ctl");
-            close(newServerSocket);
+            close(request->serverSoc);
             request->serverSoc = -1;
             return -1;
         }
@@ -239,6 +251,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
     char* req = requestToString(*request->clientRequest,&size,0);
     //printf("REQUEST :\n%s\n",req);
     if(sendAll(request->serverSoc,req,size) < 0){
+        free(req);
         return -1;
     }
     free(req);
@@ -251,7 +264,7 @@ int sendAll(int socket,char *text, int size){
         return -1;
     }
     char* buffer = text;
-    while(size > 0){
+    while(size > 0){;
         ssize_t sentBytes = send(socket, buffer, (size_t) size, 0);
         if (sentBytes < 0){
             fprintf(stderr,"ERROR SEND: %s\n",strerror(errno));

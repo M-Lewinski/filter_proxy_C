@@ -29,11 +29,12 @@ struct headerCookie{
 struct requestStruct{
     int clientSoc;
     int serverSoc;
-    struct epoll_event clientEvent;
-    struct epoll_event serverEvent;
+//    struct epoll_event* clientEvent;
+//    struct epoll_event* serverEvent;
     struct request* clientRequest;
     struct request* serverResponse;
     time_t time;
+    int alive;
 };
 
 extern int maxTimeMsc;
@@ -70,7 +71,7 @@ void freeRequest(struct request* req);
  * @param requestIndex request index in requests array
  * @param requests pointer to pointer to request
  */
-void removeRequestStruct(struct requestStruct requestIndex, struct requestStruct **requests, int *connections);
+void  removeRequestStruct(struct requestStruct* requestIndex, struct requestStruct **requests, int *connections, int epoolFd);
 
 int readData(struct request *req, int socket, time_t timeR);
 

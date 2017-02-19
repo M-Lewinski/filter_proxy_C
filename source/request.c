@@ -8,6 +8,9 @@ struct requestStruct * newRequestStruct(){
     req->clientRequest = NULL;
     req->serverResponse = NULL;
     req->time = time(0);
+//    req->clientEvent = NULL;
+//    req->serverEvent = NULL;
+    req->alive = 0;
     return req;
 }
 
@@ -39,22 +42,38 @@ void freeRequest(struct request* req){
     if(req->requestData!=NULL) free(req->requestData);
 }
 
-void removeRequestStruct(struct requestStruct req, struct requestStruct **requests, int *connections){
-    if(req.clientSoc>0) close(req.clientSoc);
-    if(req.serverSoc>0) close(req.serverSoc);
-    if(req.clientRequest != NULL) freeRequest(req.clientRequest);
-    if(req.serverResponse != NULL) freeRequest(req.serverResponse);
-    if(req.clientSoc==requests[(*connections)-1]->clientSoc) (*connections)--;
+void removeRequestStruct(struct requestStruct* req, struct requestStruct **requests, int *connections, int epoolFd) {
+    if(req->alive < 0){
+        fprintf(stderr,"###ERROR USED REQUEST WHICH WAS PREVIOUSLY DELETED###\n");
+        return;
+    }
+    req->alive = -1;
+    struct epoll_event event;
+    event.data.ptr=req;
+    event.events = EPOLLIN;
+    if(req->clientSoc>0) {
+        epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->clientSoc,&event);
+        close(req->clientSoc);
+    }
+    if(req->serverSoc>0){
+        epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->serverSoc,&event);
+        close(req->serverSoc);
+    }
+    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
+    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
+    if((*connections) > 0 && req->clientSoc==requests[(*connections)-1]->clientSoc) (*connections)--;
     else {
         int i;
         for (i = 0; i < *connections; i++) {
-            if(req.clientSoc == requests[i]->clientSoc) {
+            if(req->clientSoc == requests[i]->clientSoc) {
                 requests[i]=requests[--(*connections)];
                 break;
             }
         }
     }
+//    free(req);
 }
+
 
 int countRequestLen(struct request req, int type){
     int len = 10, i=0;                  // 10- zapas na 'Cookie: ' nagłówek
@@ -135,10 +154,11 @@ int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int so
 
 int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     int i;
-    char hexNum[10] = "";
+    char hexNum[10];
+    memset(&hexNum,0,10);
 //    hexNum[0]='\0';
     for(i=ptr ; i<bodyLen ; i++){
-        if(i>2 && (body[i]=='\n') && body[i-1]=='\r'){
+        if(i>1 && (body[i]=='\n') && body[i-1]=='\r'){
             body[i-1]='\0';
             strcpy(hexNum,&body[ptr]);
 //            memcpy(hexNum,&body[ptr],strlen(&body[ptr])+1);
@@ -159,6 +179,9 @@ int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded
 
     int size = -1;
     int iptr = -1, numberS = 0;
+    if(bodyReaded!=strlen(ptr)){
+        printf("HEK! %d - %d\n",bodyReaded,strlen(ptr));
+    }
     if (ptr!=NULL) {
         memcpy(req->requestData, ptr, (size_t) bodyReaded);
         bodyLen+=bodyReaded;
@@ -239,17 +262,27 @@ int readData(struct request *req, int socket, time_t timeR) {
         req->headers[i].value=NULL;
         req->headers[i].cookieAttr=NULL;
     }
-
+//    printf("### NEW REQUEST: %s\n",request);
     char *ptr = request;
-    char *spacer = "\r\n";
-    char *tok = strtok_r(request,spacer,&ptr);
+    char *delimiter = "\r";
+    char *tok = strtok_r(ptr,delimiter,&ptr);
     for(i=0;tok!=NULL && i<headersNum; i++){
         if(i==0) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
-//            strcpy(req->headers[i].value, tok);
-            memcpy(req->headers[i].value,tok,strlen(tok)+1);
+//            req->headers[i].value[0] = '\0';
+            strcpy(req->headers[i].value, tok);
+//            memcpy(req->headers[i].value,tok,strlen(tok)+1);
             allRead-=(strlen(tok)+2);
         } else{
+//            allRead -= (strlen(tok)+2);
+//            char* tok2 = strtok_r(tok,":",&tok);
+//            if(tok2!=NULL){
+//                req->headers[i].name = (char*) malloc(sizeof(char) * (strlen(tok2)+1));
+//                strcpy(req->headers[i].name,tok2);
+//                tok = tok + 1;
+//            }
+//            req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
+//            strcpy(req->headers[i].value,tok);
             for(j=0;j<strlen(tok);j++){
                 if(tok[j]==':') {
                     tok[j]='\0';
@@ -259,6 +292,7 @@ int readData(struct request *req, int socket, time_t timeR) {
                     allRead-=(strlen(tok)+2);
                     tok = tok+j+2;
                     req->headers[i].value = (char*) malloc(sizeof(char) * (strlen(tok)+1));
+//                    req->headers[i].value = '\0';
                     strcpy(req->headers[i].value,tok);
 //                    memcpy(req->headers[i].value,tok,strlen(tok)+1);
                     allRead-=(strlen(tok)+2);
@@ -267,10 +301,14 @@ int readData(struct request *req, int socket, time_t timeR) {
             }
         }
 
-        if(i<headersNum-1)tok = strtok_r(ptr,spacer, &ptr);
+        if(i<headersNum-1){
+            ptr++;
+            tok = strtok_r(ptr,delimiter, &ptr);
+        }
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Transfer-Encoding") && !strcmp(req->headers[i].value,"chunked")) chunkType=1;
     }
+
     if(allRead>3) ptr+=3;
     else ptr=NULL;
     allRead-=2;
