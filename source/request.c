@@ -61,8 +61,14 @@ void removeRequestStruct(struct requestStruct* req, struct requestStruct **reque
         epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->serverSoc,&event);
         close(req->serverSoc);
     }
-    if(req->clientRequest != NULL) freeRequest(req->clientRequest);
-    if(req->serverResponse != NULL) freeRequest(req->serverResponse);
+    if(req->clientRequest != NULL) {
+        freeRequest(req->clientRequest);
+        free(req->clientRequest);
+    }
+    if(req->serverResponse != NULL) {
+        freeRequest(req->serverResponse);
+        free(req->serverResponse);
+    }
     if((*connections) > 0 && req->clientSoc==requests[(*connections)-1]->clientSoc) (*connections)--;
     else {
         int i;
@@ -73,7 +79,7 @@ void removeRequestStruct(struct requestStruct* req, struct requestStruct **reque
             }
         }
     }
-//    free(req);
+    free(req);
 }
 
 
