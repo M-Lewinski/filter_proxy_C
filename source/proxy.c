@@ -250,7 +250,6 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
 //    printf("Utworzony socket: %d\n",request->serverSoc);
     int size;
     char* req = requestToString(*request->clientRequest,&size,0);
-    //printf("REQUEST :\n%s\n",req);
     if(sendAll(request->serverSoc,req,size) < 0){
         free(req);
         return -1;

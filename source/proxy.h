@@ -31,9 +31,9 @@ struct threadParametrs{
 };
 
 
-struct threadParametrs* newThread(){
-//    struct threadParameters newThreadParameter = (struct threadParameters)
-}
+//struct threadParametrs* newThread(){
+////    struct threadParameters newThreadParameter = (struct threadParameters)
+//}
 
 /**
  * Create server socket for given port and return it
