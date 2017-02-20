@@ -150,7 +150,7 @@ int handleServerResponse(struct requestStruct *reqStruct) {
     if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time, reqStruct) < 0){
         return -1;
     }
-//    filterResponse(configStructure, reqStruct);
+    filterResponse(configStructure, reqStruct);
 
     int size;
     char* req = requestToString(*reqStruct->serverResponse,&size,1);
@@ -347,6 +347,7 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
 //    printf("Utworzony socket: %d\n",request->serverSoc);
     int size;
     char* req = requestToString(*request->clientRequest,&size,0);
+    //printf("%s\n",req);
     if(sendAll(request->serverSoc,req,size) < 0){
         free(req);
         return -1;
