@@ -243,14 +243,14 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 }
             }
         }
+        pthread_mutex_lock(mutexRequest);
         for(i=0;i<*connections;i++) {
             if( (*requests)[i]->time - time(0) > 5000 ){
-                pthread_mutex_lock(mutexRequest);
-                sendAll((*requests)[i]->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1);
+                sendAll((*requests)[i]->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1,threadAlive);
                 removeRequestStruct((*requests)[i], requests, connections, epoolFd, threadsCount);
-                pthread_mutex_unlock(mutexRequest);
             }
         }
+        pthread_mutex_unlock(mutexRequest);
     }
     pthread_mutex_lock(mutexRequest);
     *threadAlive = -1;
