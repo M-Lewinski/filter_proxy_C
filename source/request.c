@@ -43,6 +43,7 @@ void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requ
                          int *threadCount) {
     (*threadCount)--;
     if(req == NULL){
+        fprintf(stderr,"TOKIOPSERJTOPSDJKL\n");
         return;
     }
     struct epoll_event event;
@@ -81,15 +82,14 @@ void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requ
 
 
 int countRequestLen(struct request req, int type){
-    int len = 10, i=0;                  // 10- zapas na 'Cookie: ' nagłówek
+    int len = 12, i=0;                  // 10- zapas na 'Cookie: ' nagłówek
     for(i=0; i<req.headersCount;i++)    //miejsce na nagłówki
         len+=(req.headers[i].name!=NULL?strlen(req.headers[i].name):0)+
              (req.headers[i].value!=NULL?strlen(req.headers[i].value):0)+4;
     for(i=0; i<req.cookiesCount;i++)    //miejsce na ciasteczka (Nagłówek 'Cookie' dla type=0 oraz wiele 'Set-Cookie' dla type=1)
         len+=(req.cookies[i].name!=NULL?strlen(req.cookies[i].name):0)+
              (req.cookies[i].value!=NULL?strlen(req.cookies[i].value):0)+
-             (((req.cookies[i].cookieAttr!=NULL) && (type==1))?strlen(req.cookies[i].cookieAttr):0)+5+
-              type==1?12:0;
+             (req.cookies[i].cookieAttr!=NULL?strlen(req.cookies[i].cookieAttr):0)+6+(type==1?12:0);
     len+=4;
     len+=req.dataLen; //miesce na dane
     return len;
@@ -224,6 +224,57 @@ int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded
     return 1;
 }
 
+void parseSingleCookie(struct headerCookie *cookie, char* cookieNameVal){
+    if(cookieNameVal==NULL || strlen(cookieNameVal)<1) return;
+    while(cookieNameVal[0] == ' ') cookieNameVal++;
+    int i, len;
+    for(i=0;i<strlen(cookieNameVal);i++)
+        if(cookieNameVal[i]=='='){
+            cookieNameVal[i]='\0';
+            break;
+        }
+    len = (int) strlen(cookieNameVal);
+    cookie->cookieAttr=NULL;
+    cookie->name = (char*)malloc(sizeof(char)*(len+1));
+    strcpy(cookie->name, cookieNameVal);
+    cookieNameVal+=len+1;
+    len = (int) strlen(cookieNameVal);
+    if(cookieNameVal[0]=='"' && cookieNameVal[len-1]=='"') {
+        cookieNameVal[len-1] = '\0';
+        cookieNameVal++;
+        len-=2;
+    }
+    cookie->value = (char*)malloc(sizeof(char)*(len+1));
+    strcpy(cookie->value, cookieNameVal);
+}
+
+void parseCookies(struct request *req) {
+    int i;
+    for (i = 0; i < req->headersCount; i++) {
+        if (req->headers[i].name != NULL && !strcmp("Cookie", req->headers[i].name)) {
+            int cookiesMem = 5;
+            req->cookies = (struct headerCookie *) malloc(cookiesMem * sizeof(struct headerCookie));
+            char *tok;
+            char *rest = req->headers[i].value;
+            while ((tok = strtok_r(rest, ";", &rest))) {
+                req->cookiesCount += 1;
+                if (req->cookiesCount > cookiesMem) {
+                    cookiesMem *= 2;
+                    req->cookies = (struct headerCookie *) realloc(req->cookies,
+                                                                   cookiesMem * sizeof(struct headerCookie));
+                }
+                parseSingleCookie(&req->cookies[req->cookiesCount - 1], tok);
+            }
+
+            free(req->headers[i].name);
+            if (req->headers[i].value != NULL) free(req->headers[i].value);
+            if (i != req->headersCount - 1)
+                req->headers[i] = req->headers[req->headersCount - 1];
+            req->headersCount--;
+            break;
+        }
+    }
+}
 
 int readData(struct request *req, int socket, time_t timeR, struct requestStruct *requestStruct) {
     int j=0,i=0, bufSize = 4096, allRead=0, headersNum=0, loop=1;
@@ -277,6 +328,7 @@ int readData(struct request *req, int socket, time_t timeR, struct requestStruct
     char *ptr = request;
     char *delimiter = "\r";
     char *tok = strtok_r(ptr,delimiter,&ptr);
+
     for(i=0;tok!=NULL && i<headersNum; i++){
         if(i==0) {
             req->headers[i].value = (char *) malloc(sizeof(char) * (strlen(tok)+1));
@@ -305,7 +357,7 @@ int readData(struct request *req, int socket, time_t timeR, struct requestStruct
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Content-Length")) content_len = atoi(req->headers[i].value);
         if(req->headers[i].name!=NULL && !strcmp(req->headers[i].name,"Transfer-Encoding") && !strcmp(req->headers[i].value,"chunked")) chunkType=1;
     }
-//    if(socket == -1) return 0;
+    parseCookies(req);
     if(allRead>3) ptr+=3;
     else ptr=NULL;
     allRead-=2;

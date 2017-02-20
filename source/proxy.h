@@ -29,12 +29,16 @@ struct threadParametrs{
 };
 
 
-struct threadParametrs newThread(pthread_mutex_t mutex,struct requestStruct *req, struct requestStruct ***requests, int *connections, int *threadCount, int *threadAlive);
+struct threadParametrs * newThread(int epollFd, pthread_mutex_t mutex, struct requestStruct *req,
+                                   struct requestStruct ***requests, int *connections, int *threadCount,
+                                   int *threadAlive);
 
 
 void * threadHandleNewConnection(void *thread);
 
-void *threadHandleNewRequest(void *thread);
+void *threadHandleServerResponse(void *thread);
+
+void *threadHandleClientRequest(void *thread);
 
 /**
  * Create server socket for given port and return it

@@ -9,18 +9,20 @@ struct configStruct* configStructure=NULL;
 
 
 
-struct threadParametrs newThread(pthread_mutex_t mutex,struct requestStruct *req, struct requestStruct ***requests, int *connections, int *threadCount, int *threadAlive){
-    struct threadParametrs thread;
-    thread.connections = connections;
-    thread.threadCount = threadCount;
-    thread.threadAlive = threadAlive;
-    thread.req = req;
-    thread.requests = requests;
+struct threadParametrs * newThread(int epollFd, pthread_mutex_t mutex, struct requestStruct *req,
+                                   struct requestStruct ***requests, int *connections, int *threadCount,
+                                   int *threadAlive){
+    struct threadParametrs* thread = (struct threadParametrs*)malloc(sizeof(struct threadParametrs));
+    thread->connections = connections;
+    thread->threadCount = threadCount;
+    thread->threadAlive = threadAlive;
+    thread->req = req;
+    thread->requests = requests;
+    thread->epollFd = epollFd;
+    thread->requestMutex = mutex;
     return thread;
 }
 
-struct requestStruct ***requests;
-struct requestStruct *req;
 
 int createAndListenServerSocket(char *port, char *address) {
     struct sockaddr_in serverSocAddr;
@@ -56,28 +58,38 @@ int createAndListenServerSocket(char *port, char *address) {
 
 void * threadHandleNewConnection(void *thread) {
     struct threadParametrs* pointer = (struct threadParametrs*) thread;
-    struct threadParametrs param = *pointer;
+//    struct threadParametrs param = *pointer;
+    int epollFd = pointer->epollFd;
+    int *connections = pointer->connections;
+    int *threadAlive = pointer->threadAlive;
+    int *threadCount = pointer->threadCount;
+    pthread_mutex_t requestMutex = pointer->requestMutex;
+    struct requestStruct ***requests = pointer->requests;
     struct requestStruct* req = newRequestStruct();
-    int epollFd = param.epollFd;
-    int *connections = param.connections;
-    int *threadAlive = param.threadAlive;
-    struct requestStruct ***requests = param.requests;
-    if(handleNewConnection(serverSoc, epollFd, req) == 0) {
-        pthread_mutex_lock(&param.requestMutex);
+    int status;
+    if((status =handleNewConnection(serverSoc, epollFd, req)) == 0) {
+        pthread_mutex_lock(&requestMutex);
         (*requests)[*connections] = req;
         (*connections)++;
-        pthread_mutex_unlock(&param.requestMutex);
+        pthread_mutex_unlock(&requestMutex);
     } else{
+        if(req->clientSoc == -1){
+            printf("===================================HEJ!\n");
+        }
         free(req);
-        req = NULL;
+//        req = NULL;
     }
-    pthread_mutex_lock(&param.requestMutex);
-    if(*threadAlive < 0){
-        removeRequestStruct(req, requests, connections, epollFd, NULL);
+
+    pthread_mutex_lock(&requestMutex);
+    if(*threadAlive < 0 && status == 0){
+        if(req->clientSoc == -1){
+            printf("##############################HEJ!\n");
+        }
+        removeRequestStruct(req, requests, connections, epollFd, threadCount);
     } else{
-        (*threadAlive)--;
+        (*threadCount)--;
     }
-    pthread_mutex_unlock(&param.requestMutex);
+    pthread_mutex_unlock(&requestMutex);
 }
 
 int handleConsoleConnection() {
@@ -158,7 +170,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     struct epoll_event *events = (struct epoll_event *)malloc(max_events * sizeof(struct epoll_event));
     struct requestStruct ***requests = (struct requestStruct***)malloc(sizeof(struct requestStruct**));
     struct requestStruct **requestsArray = (struct requestStruct**)malloc(maxConnections * sizeof(struct requestStruct*));
-    *requests = requestsArray;
+    requests[0] = requestsArray;
     serverSoc = createAndListenServerSocket(port, address);
     if(serverSoc==-1) return;
 
@@ -189,8 +201,10 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+//    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_JOINABLE);
     pthread_mutex_t mutexRequest;
     pthread_mutex_init(&mutexRequest,NULL);
+    int pc;
     int loop=1;
     while(loop){
         int n, i;
@@ -201,28 +215,63 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
         }
         for(i=0;i<n;i++){
 
+//            pthread_t *thread = (pthread_t*)malloc(sizeof(pthread_t));
+            pthread_t thread;
             if(consoleDesc == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
             } else if(serverSoc == *(int*)events[i].data.ptr){ //Incoming connection
+                pthread_mutex_lock(&mutexRequest);
                 if(*connections >= (maxConnections-5)){
                     maxConnections*=2;
 
                     *requests = (struct requestStruct**)realloc(*requests,maxConnections * sizeof(struct requestStruct*));
                 }
-
-                struct threadParametrs param = newThread(mutexRequest,NULL,requests,connections,threadsCount,threadAlive);
-                int pc;
-                pthread_t *thread = malloc(sizeof(pthread_t*));
-                if((pc = pthread_create(thread,&attr,threadHandleNewConnection,(void *) &param))){
+                pthread_mutex_unlock(&mutexRequest);
+                struct threadParametrs* param = newThread(epoolFd,mutexRequest,NULL,requests,connections,threadsCount,threadAlive);
+                pthread_mutex_lock(&mutexRequest);
+                (*threadsCount)++;
+                pthread_mutex_unlock(&mutexRequest);
+                if((pc = pthread_create(&thread,&attr,threadHandleNewConnection,(void *) param))){
+                    pthread_mutex_lock(&mutexRequest);
+                    (*threadsCount)--;
                     fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
+                    pthread_mutex_unlock(&mutexRequest);
+                    continue;
                 }
+                pthread_detach(thread);
 //                threadHandleNewConnection(NULL);
             } else { //Other events - read data from client and send it to server or from server and send it to client.
                 struct requestStruct *reqPtr = (struct requestStruct *)events[i].data.ptr;
+                struct threadParametrs* param = newThread(epoolFd,mutexRequest,reqPtr,requests,connections,threadsCount,threadAlive);
+
                 if(reqPtr->serverSoc != -1){
-                    if(handleServerResponse(reqPtr)==-1) removeRequestStruct(reqPtr, requests, connections, 0, NULL);
+                    pthread_mutex_lock(&mutexRequest);
+                    (*threadsCount)++;
+                    pthread_mutex_unlock(&mutexRequest);
+                    if((pc = pthread_create(&thread,&attr,threadHandleServerResponse,(void *) param))){
+                        pthread_mutex_lock(&mutexRequest);
+                        (*threadsCount)--;
+                        fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
+                        pthread_mutex_unlock(&mutexRequest);
+                        continue;
+                    }
+                    pthread_detach(thread);
+
+//                    if(handleServerResponse(reqPtr)==-1) removeRequestStruct(reqPtr, requests, connections, 0, NULL);
                 } else if (reqPtr->clientSoc != -1){
-                    if(handleRequest(reqPtr,epoolFd)==-1) removeRequestStruct(reqPtr, requests, connections, 0, NULL);
+                    pthread_mutex_lock(&mutexRequest);
+                    (*threadsCount)++;
+                    pthread_mutex_unlock(&mutexRequest);
+                    if((pc = pthread_create(&thread,&attr,threadHandleClientRequest,(void *) param))){
+                        pthread_mutex_lock(&mutexRequest);
+                        (*threadsCount)--;
+                        fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
+                        pthread_mutex_unlock(&mutexRequest);
+//                        continue;
+                    }
+
+                    pthread_detach(thread);
+//                    if(handleRequest(reqPtr,epoolFd)==-1) removeRequestStruct(reqPtr, requests, connections, 0, NULL);
                 }
             }
         }
@@ -298,7 +347,6 @@ int sendRequest(struct requestStruct *request, int epoolFd) {
 //    printf("Utworzony socket: %d\n",request->serverSoc);
     int size;
     char* req = requestToString(*request->clientRequest,&size,0);
-    //printf("REQUEST :\n%s\n",req);
     if(sendAll(request->serverSoc,req,size) < 0){
         free(req);
         return -1;
@@ -325,3 +373,40 @@ int sendAll(int socket,char *text, int size){
     return 1;
 }
 
+void *threadHandleServerResponse(void *thread){
+    struct threadParametrs* pointer = (struct threadParametrs*) thread;
+//    struct threadParametrs param = *pointer;
+    struct requestStruct* req = pointer->req;
+    int epollFd = pointer->epollFd;
+    int *connections = pointer->connections;
+    int *threadAlive = pointer->threadAlive;
+    int *threadCount = pointer->threadCount;
+    pthread_mutex_t requestMutex = pointer->requestMutex;
+    struct requestStruct ***requests = pointer->requests;
+    int status = handleServerResponse(req);
+    pthread_mutex_lock(&requestMutex);
+    removeRequestStruct(req, requests, connections, epollFd, threadCount);
+
+    pthread_mutex_unlock(&requestMutex);
+}
+
+void *threadHandleClientRequest(void *thread){
+    struct threadParametrs* pointer = (struct threadParametrs*) thread;
+//    struct threadParametrs param = *pointer;
+    struct requestStruct* req = pointer->req;
+    int epollFd = pointer->epollFd;
+    int *connections = pointer->connections;
+    int *threadAlive = pointer->threadAlive;
+    int *threadCount = pointer->threadCount;
+    struct requestStruct ***requests = pointer->requests;
+    pthread_mutex_t requestMutex = pointer->requestMutex;
+    int status = handleRequest(req,epollFd);
+    pthread_mutex_lock(&requestMutex);
+    if(status == -1 || (*threadAlive < 0)){
+        removeRequestStruct(req, requests, connections, epollFd, threadCount);
+    } else{
+        (*threadCount)--;
+    }
+    pthread_mutex_unlock(&requestMutex);
+
+}
