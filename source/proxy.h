@@ -19,20 +19,23 @@
 #include <pthread.h>
 
 struct threadParametrs{
-    pthread_mutex_t requestMutex;
+    pthread_mutex_t *requestMutex;
     struct requestStruct ***requests;
     struct requestStruct *req;
     int *connections;
     int *threadCount;
     int *threadAlive;
     int epollFd;
+    pthread_t  *threadId;
 };
 
 
-struct threadParametrs * newThread(int epollFd, pthread_mutex_t mutex, struct requestStruct *req,
-                                   struct requestStruct ***requests, int *connections, int *threadCount,
-                                   int *threadAlive);
+struct threadParametrs *newThread(int epollFd, pthread_mutex_t *mutex, struct requestStruct *req,
+                                  struct requestStruct ***requests,
+                                  int *connections, int *threadCount, int *threadAlive, pthread_t *threadId);
 
+
+void freethreadParametrs(struct threadParametrs* param);
 
 void * threadHandleNewConnection(void *thread);
 
