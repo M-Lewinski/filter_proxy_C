@@ -175,7 +175,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     int loop=1;
     while(loop){
         int n, i;
-        n = epoll_wait(epoolFd, events, max_events, 5000);
+        n = epoll_wait(epoolFd, events, max_events, 500);
         if(n>(int)(max_events*0.8)){
             max_events*=2;
             events = realloc(events,max_events*sizeof(struct epoll_event));
@@ -212,6 +212,10 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 thread = (pthread_t*)malloc(sizeof(pthread_t));
                 struct threadParametrs* param = newThread(epoolFd, mutexRequest, reqPtr, requests, connections,
                                                           threadsCount, threadAlive, thread);
+                pthread_mutex_lock(mutexRequest);
+                reqPtr->time = time(0);
+                pthread_mutex_unlock(mutexRequest);
+
                 if(reqPtr->serverSoc != -1){
                     pthread_mutex_lock(mutexRequest);
                     (*threadsCount)++;
@@ -245,6 +249,14 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 } else{
                     freethreadParametrs(param);
                 }
+            }
+        }
+        for(i=0;i<*connections;i++) {
+            if( (*requests)[i]->time - time(0) > 5000 ){
+                pthread_mutex_lock(mutexRequest);
+                sendAll((*requests)[i]->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1);
+                removeRequestStruct((*requests)[i], requests, connections, epoolFd, threadsCount);
+                pthread_mutex_unlock(mutexRequest);
             }
         }
     }
