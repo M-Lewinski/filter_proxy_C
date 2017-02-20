@@ -77,6 +77,8 @@ int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct
         return -1;
     }
     pStruct->clientSoc=clientFd;
+    struct timeval tv = {5, 0};
+    setsockopt(pStruct->clientSoc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,sizeof(struct timeval));
 
     clientEvent.data.ptr=pStruct;
     clientEvent.events = EPOLLIN | EPOLLONESHOT;
@@ -91,7 +93,8 @@ int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct
 
 int handleRequest(struct requestStruct *reqStruct, int epoolFd, int *threadAlive) {
     reqStruct->clientRequest = newRequest();
-    if(readData(reqStruct->clientRequest, reqStruct->clientSoc, reqStruct->time, reqStruct, threadAlive) < 0){
+
+    if(readData(reqStruct->clientRequest, reqStruct->clientSoc,reqStruct, threadAlive) < 0){
         return -1;
     }
 
@@ -109,16 +112,17 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd, int *threadAlive
 
 int handleServerResponse(struct requestStruct *reqStruct, int *threadAlive) {
     reqStruct->serverResponse = newRequest();
-    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct->time, reqStruct, threadAlive) < 0){
-        return -1;
+
+    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct,threadAlive) < 0){
+        return -2;
     }
     filterResponse(configStructure, reqStruct);
 
     int size;
     char* req = requestToString(*reqStruct->serverResponse,&size,1);
-    //printf("RESPONSE :\n%s\n",req);
-    sendAll(reqStruct->clientSoc, req, size, threadAlive);
+    int status = sendAll(reqStruct->clientSoc,req,size,threadAlive);
     free(req);
+    if(status<0) return -2;
     return -1;
 };
 
@@ -163,7 +167,6 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
-//    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_JOINABLE);
     pthread_mutex_t *mutexRequest = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexRequest,NULL);
     int pc;
@@ -300,6 +303,9 @@ int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive) {
             return -1;
         }
         request->serverSoc = newServerSocket;
+        struct timeval tv = {5, 0};
+        setsockopt(request->serverSoc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv,sizeof(struct timeval));
+
         struct epoll_event serverEvent;
         serverEvent.data.ptr=request;
         serverEvent.events = EPOLLIN | EPOLLONESHOT;
@@ -350,8 +356,9 @@ void *threadHandleServerResponse(void *thread){
     int *threadCount = pointer->threadCount;
     pthread_mutex_t* requestMutex = pointer->requestMutex;
     struct requestStruct ***requests = pointer->requests;
-    handleServerResponse(req, threadAlive);
+    int status = handleServerResponse(req, threadAlive);
     pthread_mutex_lock(requestMutex);
+    if(status==-2) sendAll(req->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1,threadAlive);
     removeRequestStruct(req, requests, connections, epollFd, threadCount);
     freethreadParametrs(pointer);
     pthread_mutex_unlock(requestMutex);
@@ -369,12 +376,14 @@ void *threadHandleClientRequest(void *thread){
     int status = handleRequest(req, epollFd, threadAlive);
     pthread_mutex_lock(requestMutex);
     if(status == -1 || (*threadAlive < 0)){
+        sendAll(req->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1,threadAlive);
         removeRequestStruct(req, requests, connections, epollFd, threadCount);
     } else{
         (*threadCount)--;
     }
     freethreadParametrs(pointer);
     pthread_mutex_unlock(requestMutex);
+
 
 }
 

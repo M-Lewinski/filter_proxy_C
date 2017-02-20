@@ -278,7 +278,7 @@ void parseCookies(struct request *req) {
     }
 }
 
-int readData(struct request *req, int socket, time_t timeR, struct requestStruct *requestStruct, int *threadAlive) {
+int readData(struct request *req, int socket, struct requestStruct *requestStruct, int *threadAlive) {
     int j=0,i=0, bufSize = 4096, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
     ssize_t read;
@@ -296,16 +296,8 @@ int readData(struct request *req, int socket, time_t timeR, struct requestStruct
             fprintf(stderr,"Failed to recv form socket when reading headers: %d\n",socket);
             return -1;
         }
-        if(read == 0){
-            if(socket == requestStruct->clientSoc){
-                requestStruct->clientSoc = -1;
-            } else{
-                requestStruct->serverSoc = -1;
-            }
-            close(socket);
-            socket = -1;
-            break;
-        }
+        if(read == 0) break;
+
         buf[read]='\0';
         if(allRead+read+1 > requestMem){
             requestMem*=2;
@@ -377,14 +369,7 @@ int readData(struct request *req, int socket, time_t timeR, struct requestStruct
             req->requestData=NULL;
         }
     }
-    if(status == 0){
-        if(socket == requestStruct->clientSoc){
-            requestStruct->clientSoc = -1;
-        } else{
-            requestStruct->serverSoc = -1;
-        }
-        close(socket);
-    }
+
     free(request);
     return status;
 }
