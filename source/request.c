@@ -43,19 +43,16 @@ void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requ
                          int *threadCount) {
     (*threadCount)--;
     if(req == NULL){
-        fprintf(stderr,"TOKIOPSERJTOPSDJKL\n");
         return;
     }
     struct epoll_event event;
     event.data.ptr=req;
-//    event.events = EPOLLIN;
-    event.events = EPOLLIN | EPOLLRDHUP;
+    event.events = EPOLLIN;
     if(req->clientSoc>0) {
         epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->clientSoc,&event);
         close(req->clientSoc);
     }
     if(req->serverSoc>0){
-//        printf("Usuniety socket: %d\n",req->serverSoc);
         epoll_ctl(epoolFd,EPOLL_CTL_DEL,req->serverSoc,&event);
         close(req->serverSoc);
     }
@@ -132,7 +129,8 @@ char *requestToString(struct request req, int *size, int type){
 }
 
 
-int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket, int bodyreaded) {
+int
+readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket, int bodyreaded, int *threadAlive) {
     int bufSize=4096;
     char buf[bufSize];
 
@@ -145,6 +143,9 @@ int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int so
         return 1;
     }
     while(bodyreaded<content_len){
+        if(*threadAlive < 0){
+            return -1;
+        }
         ssize_t read = recv(socket, buf, (size_t) bufSize, 0);
         if(read==-1){
             fprintf(stderr,"Failed to recv form socket when reading body: %d\n",socket);
@@ -163,12 +164,10 @@ int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
     int i;
     char hexNum[10];
     memset(&hexNum,0,10);
-//    hexNum[0]='\0';
     for(i=ptr ; i<bodyLen ; i++){
         if(i>1 && (body[i]=='\n') && body[i-1]=='\r'){
             body[i-1]='\0';
             strcpy(hexNum,&body[ptr]);
-//            memcpy(hexNum,&body[ptr],strlen(&body[ptr])+1);
             body[i-1]='\r';
             break;
         }
@@ -179,7 +178,7 @@ int getChunkSize(int ptr, int *size, char *body, int bodyLen) {
 }
 
 
-int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded) {
+int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded, int *threadAlive) {
     int bodyMemmory = (4096 > bodyReaded ? 4096 : bodyReaded ), bodyLen=0;
     req->requestData = (char*)malloc(sizeof(char)*(bodyMemmory+1));
 //    req->requestData[0]='\0';
@@ -202,6 +201,9 @@ int readBodyIfChunked(struct request *req, char *ptr, int socket, int bodyReaded
         else {
             int tmpBudSize = 4098;
             char tmpBuf[tmpBudSize+1];
+            if(*threadAlive < 0){
+                return -1;
+            }
             ssize_t read = recv(socket, tmpBuf, (size_t) tmpBudSize, 0);
             if(read==-1){
                 fprintf(stderr,"Failed to recv form socket when reading body: %d\n",socket);
@@ -276,7 +278,7 @@ void parseCookies(struct request *req) {
     }
 }
 
-int readData(struct request *req, int socket, struct requestStruct *requestStruct) {
+int readData(struct request *req, int socket, struct requestStruct *requestStruct, int *threadAlive) {
     int j=0,i=0, bufSize = 4096, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
     ssize_t read;
@@ -284,6 +286,9 @@ int readData(struct request *req, int socket, struct requestStruct *requestStruc
     char *request = (char*)malloc(requestMem*sizeof(char));
     request[0]='\0';
     while(loop) {
+        if(*threadAlive < 0){
+            return -1;
+        }
         read=recv(socket, buf, (size_t) bufSize, 0);
         if(read<0){
             fprintf(stderr,"READ ERROR: %s\n",strerror(errno));
@@ -356,10 +361,10 @@ int readData(struct request *req, int socket, struct requestStruct *requestStruc
 
     int status = 1;
     if(content_len>0) {
-        status = readBodyHavingConLen(content_len, req, ptr, socket, allRead);
+        status = readBodyHavingConLen(content_len, req, ptr, socket, allRead, threadAlive);
     } else {
         if (chunkType){
-            status = readBodyIfChunked(req, ptr, socket, allRead);
+            status = readBodyIfChunked(req, ptr, socket, allRead, threadAlive);
         } else {
             req->requestData=NULL;
         }
