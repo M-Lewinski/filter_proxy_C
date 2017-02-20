@@ -18,9 +18,22 @@
 #include <errno.h>
 #include <pthread.h>
 
-struct newConnection{
+struct threadParametrs{
     pthread_mutex_t requestMutex;
+    struct requestStruct ***requests;
+    struct requestStruct *req;
+    int *connections;
+    struct threadParametrs ***threads;
+    int *threadCount;
+    pthread_t *thread;
+    int threadAlive;
+
 };
+
+
+struct threadParametrs* newThread(){
+//    struct threadParameters newThreadParameter = (struct threadParameters)
+}
 
 /**
  * Create server socket for given port and return it
