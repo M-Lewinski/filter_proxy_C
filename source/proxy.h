@@ -23,17 +23,18 @@ struct threadParametrs{
     struct requestStruct ***requests;
     struct requestStruct *req;
     int *connections;
-    struct threadParametrs ***threads;
     int *threadCount;
-    pthread_t *thread;
-    int threadAlive;
-
+    int *threadAlive;
+    int epollFd;
 };
 
 
-struct threadParametrs* newThread(){
-//    struct threadParameters newThreadParameter = (struct threadParameters)
-}
+struct threadParametrs newThread(pthread_mutex_t mutex,struct requestStruct *req, struct requestStruct ***requests, int *connections, int *threadCount, int *threadAlive);
+
+
+void * threadHandleNewConnection(void *thread);
+
+void *threadHandleNewRequest(void *thread);
 
 /**
  * Create server socket for given port and return it
@@ -90,6 +91,8 @@ int sendRequest(struct requestStruct *request, int epoolFd);
  * @return positive if succesfull, negative if failed
  */
 int sendAll(int socket,char *text, int size);
+
+
 
 
 #endif

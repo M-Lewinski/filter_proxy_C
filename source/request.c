@@ -39,7 +39,12 @@ void freeRequest(struct request* req){
     if(req->requestData!=NULL) free(req->requestData);
 }
 
-void removeRequestStruct(struct requestStruct* req, struct requestStruct **requests, int *connections, int epoolFd) {
+void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requests, int *connections, int epoolFd,
+                         int *threadCount) {
+    (*threadCount)--;
+    if(req == NULL){
+        return;
+    }
     struct epoll_event event;
     event.data.ptr=req;
 //    event.events = EPOLLIN;
@@ -61,12 +66,12 @@ void removeRequestStruct(struct requestStruct* req, struct requestStruct **reque
         freeRequest(req->serverResponse);
         free(req->serverResponse);
     }
-    if((*connections) > 0 && req->clientSoc==requests[(*connections)-1]->clientSoc) (*connections)--;
+    if((*connections) > 0 && req->clientSoc==(*requests)[(*connections)-1]->clientSoc) (*connections)--;
     else {
         int i;
         for (i = 0; i < *connections; i++) {
-            if(req->clientSoc == requests[i]->clientSoc) {
-                requests[i]=requests[--(*connections)];
+            if(req->clientSoc == (*requests)[i]->clientSoc) {
+                (*requests)[i]=(*requests)[--(*connections)];
                 break;
             }
         }
