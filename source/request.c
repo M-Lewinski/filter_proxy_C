@@ -41,7 +41,9 @@ void freeRequest(struct request* req){
 
 void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requests, int *connections, int epoolFd,
                          int *threadCount) {
-    (*threadCount)--;
+    if(threadCount != NULL){
+        (*threadCount)--;
+    }
     if(req == NULL){
         return;
     }

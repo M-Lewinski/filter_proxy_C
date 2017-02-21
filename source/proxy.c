@@ -280,6 +280,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     pthread_mutex_destroy(mutexRequest);
     free(mutexRequest);
     free(attr);
+    pthread_exit(NULL);
 }
 
 int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive) {
@@ -379,6 +380,7 @@ void *threadHandleServerResponse(void *thread){
     removeRequestStruct(req, requests, connections, epollFd, threadCount);
     freethreadParametrs(pointer);
     pthread_mutex_unlock(requestMutex);
+    pthread_exit(NULL);
 }
 
 void *threadHandleClientRequest(void *thread){
@@ -399,8 +401,7 @@ void *threadHandleClientRequest(void *thread){
     }
     freethreadParametrs(pointer);
     pthread_mutex_unlock(requestMutex);
-
-
+    pthread_exit(NULL);
 }
 
 
@@ -432,6 +433,7 @@ void * threadHandleNewConnection(void *thread) {
         }
         freethreadParametrs(pointer);
         pthread_mutex_unlock(requestMutex);
+    pthread_exit(NULL);
 }
 
 
