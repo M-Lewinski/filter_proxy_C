@@ -71,6 +71,6 @@ void freeRequest(struct request* req);
 void removeRequestStruct(struct requestStruct *requestIndex, struct requestStruct ***requests, int *connections, int epoolFd,
                          int *threadCount);
 
-int readData(struct request *req, int socket, struct requestStruct *requestStruct, int *threadAlive);
+int readData(struct request *req, int socket, int *threadAlive);
 
 #endif //FILTER_PROXY_C_REQUEST_H

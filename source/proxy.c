@@ -94,7 +94,7 @@ int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct
 int handleRequest(struct requestStruct *reqStruct, int epoolFd, int *threadAlive) {
     reqStruct->clientRequest = newRequest();
 
-    if(readData(reqStruct->clientRequest, reqStruct->clientSoc,reqStruct, threadAlive) < 0){
+    if(readData(reqStruct->clientRequest, reqStruct->clientSoc, threadAlive) < 0){
         return -1;
     }
 
@@ -113,7 +113,7 @@ int handleRequest(struct requestStruct *reqStruct, int epoolFd, int *threadAlive
 int handleServerResponse(struct requestStruct *reqStruct, int *threadAlive) {
     reqStruct->serverResponse = newRequest();
 
-    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, reqStruct,threadAlive) < 0){
+    if(readData(reqStruct->serverResponse, reqStruct->serverSoc, threadAlive) < 0){
         return -2;
     }
     filterResponse(configStructure, reqStruct);
@@ -151,8 +151,8 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     struct epoll_event serverInEvent, consoleEvent;
     serverInEvent.data.ptr = &serverSoc;
     consoleEvent.data.ptr = &consoleDesc;
-    serverInEvent.events = EPOLLIN;
-    consoleEvent.events = EPOLLIN;
+    serverInEvent.events = EPOLLIN | EPOLLRDHUP;
+    consoleEvent.events = EPOLLIN | EPOLLRDHUP;
     if(epoll_ctl(epoolFd, EPOLL_CTL_ADD, serverSoc, &serverInEvent)==-1){
         perror ("epoll_ctl");
         close(serverSoc);
@@ -164,9 +164,9 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     *threadsCount = 0;
     int *threadAlive = (int*)malloc(sizeof(int));
     *threadAlive = 0;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+    pthread_attr_t *attr = (pthread_attr_t*)malloc(sizeof(pthread_attr_t));
+    pthread_attr_init(attr);
+    pthread_attr_setdetachstate(attr,PTHREAD_CREATE_DETACHED);
     pthread_mutex_t *mutexRequest = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(mutexRequest,NULL);
     int pc;
@@ -194,7 +194,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 struct threadParametrs* param = newThread(epoolFd, mutexRequest, NULL, requests, connections,
                                                           threadsCount, threadAlive, thread);
                 (*threadsCount)++;
-                if((pc = pthread_create(thread,&attr,threadHandleNewConnection,(void *) param))){
+                if((pc = pthread_create(thread,attr,threadHandleNewConnection,(void *) param))){
                     (*threadsCount)--;
                     freethreadParametrs(param);
                     fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
@@ -215,7 +215,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 if(reqPtr->serverSoc != -1){
                     pthread_mutex_lock(mutexRequest);
                     (*threadsCount)++;
-                    if((pc = pthread_create(thread,&attr,threadHandleServerResponse,(void *) param))){
+                    if((pc = pthread_create(thread,attr,threadHandleServerResponse,(void *) param))){
                         (*threadsCount)--;
                         freethreadParametrs(param);
                         fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
@@ -228,7 +228,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                 } else if (reqPtr->clientSoc != -1){
                     pthread_mutex_lock(mutexRequest);
                     (*threadsCount)++;
-                    if((pc = pthread_create(thread,&attr,threadHandleClientRequest,(void *) param))){
+                    if((pc = pthread_create(thread,attr,threadHandleClientRequest,(void *) param))){
                         (*threadsCount)--;
                         freethreadParametrs(param);
                         fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
@@ -244,10 +244,12 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             }
         }
         pthread_mutex_lock(mutexRequest);
+        time_t end = time(0);
         for(i=0;i<*connections;i++) {
-            if( (*requests)[i]->time - time(0) > 5000 ){
+            if( (*requests)[i]->time - end > 5000 ){
                 sendAll((*requests)[i]->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1,threadAlive);
-                removeRequestStruct((*requests)[i], requests, connections, epoolFd, threadsCount);
+                removeRequestStruct((*requests)[i], requests, connections, epoolFd, NULL);
+                i--;
             }
         }
         pthread_mutex_unlock(mutexRequest);
@@ -258,10 +260,13 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     int wait = 1;
     while(wait){
         pthread_mutex_lock(mutexRequest);
-        if(*threadsCount < 1 && *connections < 1){
+        if(*threadsCount < 1){
             wait = 0;
         }
         pthread_mutex_unlock(mutexRequest);
+    }
+    while(*connections > 0){
+         removeRequestStruct((*requests)[0],requests,connections,epoolFd,NULL);
     }
     free(connections);
     free(threadAlive);
@@ -271,9 +276,10 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     free(events);
     close(epoolFd);
     close(serverSoc);
-    pthread_attr_destroy(&attr);
+    pthread_attr_destroy(attr);
     pthread_mutex_destroy(mutexRequest);
     free(mutexRequest);
+    free(attr);
 }
 
 int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive) {
@@ -370,7 +376,6 @@ void *threadHandleServerResponse(void *thread){
     struct requestStruct ***requests = pointer->requests;
     int status = handleServerResponse(req, threadAlive);
     pthread_mutex_lock(requestMutex);
-    if(status==-2) sendAll(req->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1,threadAlive);
     removeRequestStruct(req, requests, connections, epollFd, threadCount);
     freethreadParametrs(pointer);
     pthread_mutex_unlock(requestMutex);
@@ -388,7 +393,6 @@ void *threadHandleClientRequest(void *thread){
     int status = handleRequest(req, epollFd, threadAlive);
     pthread_mutex_lock(requestMutex);
     if(status == -1 || (*threadAlive < 0)){
-        sendAll(req->clientSoc,proxyTimeout,(int) strlen(proxyTimeout)+1,threadAlive);
         removeRequestStruct(req, requests, connections, epollFd, threadCount);
     } else{
         (*threadCount)--;
@@ -401,34 +405,33 @@ void *threadHandleClientRequest(void *thread){
 
 
 void * threadHandleNewConnection(void *thread) {
-    struct threadParametrs* pointer = (struct threadParametrs*) thread;
+    struct threadParametrs *pointer = (struct threadParametrs *) thread;
     int epollFd = pointer->epollFd;
     int *connections = pointer->connections;
     int *threadAlive = pointer->threadAlive;
     int *threadCount = pointer->threadCount;
     pthread_mutex_t *requestMutex = pointer->requestMutex;
     struct requestStruct ***requests = pointer->requests;
-    struct requestStruct* req = newRequestStruct();
-    int status;
-    if((status =handleNewConnection(serverSoc, epollFd, req)) == 0) {
+        struct requestStruct *req = newRequestStruct();
+        int status;
+        if ((status = handleNewConnection(serverSoc, epollFd, req)) == 0) {
+            pthread_mutex_lock(requestMutex);
+            (*requests)[*connections] = req;
+            (*connections)++;
+            pthread_mutex_unlock(requestMutex);
+        } else {
+            free(req);
+//            req = NULL;
+        }
+
         pthread_mutex_lock(requestMutex);
-        (*requests)[*connections] = req;
-        (*connections)++;
+        if (*threadAlive < 0 && status == 0) {
+            removeRequestStruct(req, requests, connections, epollFd, threadCount);
+        } else {
+            (*threadCount)--;
+        }
+        freethreadParametrs(pointer);
         pthread_mutex_unlock(requestMutex);
-    } else{
-        free(req);
-        req = NULL;
-    }
-
-    pthread_mutex_lock(requestMutex);
-    if(*threadAlive < 0 && status == 0){
-
-        removeRequestStruct(req, requests, connections, epollFd, threadCount);
-    } else{
-        (*threadCount)--;
-    }
-    freethreadParametrs(pointer);
-    pthread_mutex_unlock(requestMutex);
 }
 
 

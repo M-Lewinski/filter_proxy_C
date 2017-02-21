@@ -75,6 +75,7 @@ void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requ
         }
     }
     free(req);
+    req = NULL;
 }
 
 
@@ -129,8 +130,7 @@ char *requestToString(struct request req, int *size, int type){
 }
 
 
-int
-readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket, int bodyreaded, int *threadAlive) {
+int readBodyHavingConLen(int content_len, struct request *req, char *ptr, int socket, int bodyreaded, int *threadAlive) {
     int bufSize=4096;
     char buf[bufSize];
 
@@ -278,7 +278,7 @@ void parseCookies(struct request *req) {
     }
 }
 
-int readData(struct request *req, int socket, struct requestStruct *requestStruct, int *threadAlive) {
+int readData(struct request *req, int socket, int *threadAlive) {
     int j=0,i=0, bufSize = 4096, allRead=0, headersNum=0, loop=1;
     char buf[bufSize+1];
     ssize_t read;

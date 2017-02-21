@@ -102,4 +102,6 @@ int sendAll(int socket, char *text, int size, int *threadAlive);
 
 
 
+void freethreadParametrs(struct threadParametrs* param);
+
 #endif
