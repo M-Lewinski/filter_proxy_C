@@ -16,14 +16,12 @@ int checkRegex(char* toCheck, regex_t *regex){
 
 char *getHost(struct request *req){
     int i=0;
-    char *location=NULL;
     for(i=0;i<req->headersCount;i++) {
-        if (!strcmp(req->headers[i].name, hostHeader)) {
-            location = req->headers[i].value;
-            break;
+        if (req->headers[i].name!=NULL && !strcmp(req->headers[i].name, hostHeader)) {
+            return req->headers[i].value;
         }
     }
-    return location;
+    return NULL;
 }
 
 int checkBlocked(struct configStruct *config, struct requestStruct *reqStruct){
@@ -39,7 +37,7 @@ int checkBlocked(struct configStruct *config, struct requestStruct *reqStruct){
 
 struct headerCookie * add(char *name, char *value, struct headerCookie *headers, int *count) {
     int i=0;
-    for(i=0;i<*count;i++) if(!strcmp(name,headers[i].name)) return headers; //Check if header not exist
+    for(i=0;i<*count;i++) if(headers[i].name!=NULL && !strcmp(name,headers[i].name)) return headers; //Check if header not exist
     struct headerCookie newHeader;
     newHeader.cookieAttr=NULL;
     newHeader.name = (char*)malloc((strlen(name)+1)*sizeof(char));
@@ -55,10 +53,13 @@ struct headerCookie * add(char *name, char *value, struct headerCookie *headers,
 struct headerCookie *del(regex_t *name, struct headerCookie *headers, int *count) {
     int i=0;
     for(i=0;i<*count;i++)
-        if(checkRegex(headers[i].name,name)){
+        if(headers[i].name!=NULL && checkRegex(headers[i].name,name)){
             free(headers[i].value);
+            headers[i].value = NULL;
             free(headers[i].name);
+            headers[i].name = NULL;
             free(headers[i].cookieAttr);
+            headers[i].cookieAttr = NULL;
             if(i!=*count-1) headers[i] = headers[*count-1];
             (*count)--;
         }
@@ -68,7 +69,7 @@ struct headerCookie *del(regex_t *name, struct headerCookie *headers, int *count
 void cha(regex_t *name, char *value, struct headerCookie *headers, int *count) {
     int i=0;
     for(i=0;i<*count;i++)
-        if(checkRegex(headers[i].name,name)){
+        if(headers[i].name!=NULL && checkRegex(headers[i].name,name)){
             if(strlen(headers[i].value) < strlen(value))
                 headers[i].value = (char*)realloc(headers[i].value, (strlen(value)+1)*sizeof(char));
             headers[i].value = strcpy(headers[i].value,value);

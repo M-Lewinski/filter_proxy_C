@@ -46,6 +46,8 @@ struct headersRule newClearRule(){
 void freeHeaderStruct(struct headersRule ruleToFree){
     if(ruleToFree.hostNameRegex!=NULL) regfree(ruleToFree.hostNameRegex);
     if(ruleToFree.nameRegex!=NULL) regfree(ruleToFree.nameRegex);
+    free(ruleToFree.hostNameRegex);
+    free(ruleToFree.nameRegex);
     free(ruleToFree.namePattern);
     free(ruleToFree.hostNamePattern);
     free(ruleToFree.value);
@@ -53,14 +55,16 @@ void freeHeaderStruct(struct headersRule ruleToFree){
 void freeBlockStruct(struct blockRule ruleToFree){
     free(ruleToFree.hostPattern);
     if(ruleToFree.hostRegex!=NULL) regfree(ruleToFree.hostRegex);
+    free(ruleToFree.hostRegex);
 }
 
 void freeConfig(struct configStruct* config){
     if(config==NULL) return;
 
     int i;
-    for(i=0;i<config->blockRulesNumber;i++)
+    for(i=0;i<config->blockRulesNumber;i++){
         freeBlockStruct(config->block[i]);
+    }
     for(i=0;i<config->cookieRulesNumber;i++)
         freeHeaderStruct(config->cookie[i]);
     for(i=0;i<config->headerRulesNumber;i++)
@@ -196,5 +200,6 @@ int parseHeaderRule(struct configStruct* config, char** splittedLine, int header
         default:
             exit(1);
     }
+
     return 0;
 }

@@ -15,6 +15,33 @@
 #include "rule.h"
 #include <stddef.h>
 #include <netdb.h>
+#include <errno.h>
+#include <pthread.h>
+
+struct threadParametrs{
+    pthread_mutex_t *requestMutex;
+    struct requestStruct ***requests;
+    struct requestStruct *req;
+    int *connections;
+    int *threadCount;
+    int *threadAlive;
+    int epollFd;
+    pthread_t  *threadId;
+};
+
+
+struct threadParametrs *newThread(int epollFd, pthread_mutex_t *mutex, struct requestStruct *req,
+                                  struct requestStruct ***requests,
+                                  int *connections, int *threadCount, int *threadAlive, pthread_t *threadId);
+
+
+void freethreadParametrs(struct threadParametrs* param);
+
+void * threadHandleNewConnection(void *thread);
+
+void *threadHandleServerResponse(void *thread);
+
+void *threadHandleClientRequest(void *thread);
 
 /**
  * Create server socket for given port and return it
@@ -34,21 +61,21 @@ int handleConsoleConnection();
  * @param serverFd server socket
  * @param epoolFd epoll handler
  */
-struct requestStruct * handleNewConnection(int serverFd, int epoolFd);
+int handleNewConnection(int serverFd, int epoolFd, struct requestStruct *pStruct);
 
 /**
  * Should handle incoming request: read data, parse and filter request and make call to server;
  * @param clientFd
  * @return -1 if we should remove response and close socket, 0 in other case
  */
-int handleRequest(struct requestStruct *reqStruct);
+int handleRequest(struct requestStruct *reqStruct, int epoolFd, int *threadAlive);
 
 /**
  * Handle server response and write data to client socket
  * @param reqStruct struct with client and server sockets
  * @return -1 if we should remove response and close socket, 0 in other case
  */
-int handleServerResponse(struct requestStruct *reqStruct);
+int handleServerResponse(struct requestStruct *reqStruct, int *threadAlive);
 
 /**
  * Start proxy server
@@ -62,6 +89,17 @@ void startProxyServer(char *port, char*address, struct configStruct* config);
  * @param request pointer to request struct
  * @return new server socket or -1 if error occured
  */
-int sendRequest(struct requestStruct *request);
+int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive);
+
+/**
+ *
+ * @param socket socket to which message will be send
+ * @param text message which will be send
+ * @return positive if succesfull, negative if failed
+ */
+int sendAll(int socket, char *text, int size, int *threadAlive);
+
+
+
 
 #endif
