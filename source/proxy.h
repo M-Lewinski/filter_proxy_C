@@ -20,6 +20,7 @@
 
 struct threadParametrs{
     pthread_mutex_t *requestMutex;
+    pthread_cond_t *endCondition;
     struct requestStruct ***requests;
     struct requestStruct *req;
     int *connections;
@@ -30,9 +31,8 @@ struct threadParametrs{
 };
 
 
-struct threadParametrs *newThread(int epollFd, pthread_mutex_t *mutex, struct requestStruct *req,
-                                  struct requestStruct ***requests,
-                                  int *connections, int *threadCount, int *threadAlive, pthread_t *threadId);
+struct threadParametrs *newThread(int epollFd, pthread_mutex_t *mutex, struct requestStruct *req, struct requestStruct ***requests,
+                                  int *connections, int *threadCount, int *threadAlive, pthread_t *threadId, pthread_cond_t *endCondition);
 
 
 void freethreadParametrs(struct threadParametrs* param);
@@ -97,7 +97,7 @@ int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive);
  * @param text message which will be send
  * @return positive if succesfull, negative if failed
  */
-int sendAll(int socket, char *text, int size, int *threadAlive);
+int sendAll(int socket, char *text, int size);
 
 
 
