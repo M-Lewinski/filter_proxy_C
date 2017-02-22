@@ -29,6 +29,9 @@ struct headerCookie{
 struct requestStruct{
     int clientSoc;
     int serverSoc;
+    int clientHandled;
+    int serverHandled;
+
     struct request* clientRequest;
     struct request* serverResponse;
     time_t time;

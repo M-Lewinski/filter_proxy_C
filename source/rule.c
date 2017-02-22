@@ -17,9 +17,7 @@ int checkRegex(char* toCheck, regex_t *regex){
 char *getHost(struct request *req){
     int i=0;
     for(i=0;i<req->headersCount;i++) {
-        if (req->headers[i].name!=NULL && !strcmp(req->headers[i].name, hostHeader)) {
-            return req->headers[i].value;
-        }
+        if (req->headers[i].name!=NULL && !strcmp(req->headers[i].name, hostHeader)) return req->headers[i].value;
     }
     return NULL;
 }

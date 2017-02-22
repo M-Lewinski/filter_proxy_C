@@ -8,6 +8,8 @@ struct requestStruct * newRequestStruct(){
     req->clientRequest = NULL;
     req->serverResponse = NULL;
     req->time = time(0);
+    req->clientHandled=0;
+    req->serverHandled=0;
     return req;
 }
 
@@ -77,7 +79,6 @@ void removeRequestStruct(struct requestStruct *req, struct requestStruct ***requ
         }
     }
     free(req);
-    req = NULL;
 }
 
 
