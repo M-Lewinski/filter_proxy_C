@@ -215,6 +215,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                     pthread_mutex_lock(mutexRequest);
                     if(reqPtr->serverHandled) {
                         freethreadParametrs(param);
+                        pthread_mutex_unlock(mutexRequest);
                         continue;
                     }
                     (*threadsCount)++;
@@ -234,6 +235,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                     pthread_mutex_lock(mutexRequest);
                     if(reqPtr->clientHandled) {
                         freethreadParametrs(param);
+                        pthread_mutex_unlock(mutexRequest);
                         continue;
                     }
                     (*threadsCount)++;
@@ -272,7 +274,7 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
     *threadAlive = -1;
     pthread_mutex_unlock(mutexRequest);
     pthread_mutex_lock(mutexRequest);
-    while(*threadsCount != 0){
+    if(*threadsCount != 0){
         pthread_cond_wait(endCondition,mutexRequest);
     }
     pthread_mutex_unlock(mutexRequest);
