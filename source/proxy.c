@@ -181,7 +181,6 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
             max_events*=2;
             events = realloc(events,max_events*sizeof(struct epoll_event));
         }
-        printf("%d %d\n",*threadsCount, *connections);
         for(i=0;i<n;i++){
             if(consoleDesc == *(int*)events[i].data.ptr){ //Handle console input to stop server
                 loop=handleConsoleConnection();
@@ -245,8 +244,6 @@ void startProxyServer(char *port, char*address, struct configStruct* config){
                     if((pc = pthread_create(thread,attr,threadHandleClientRequest,(void *) param))){
                         pthread_mutex_lock(mutexRequest);
                         (*threadsCount)--;
-                        pthread_mutex_unlock(mutexRequest);
-
                         freethreadParametrs(param);
                         fprintf(stderr,"ERROR Pthread_create: %d\n",pc);
                         pthread_mutex_unlock(mutexRequest);
