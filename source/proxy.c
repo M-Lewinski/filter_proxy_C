@@ -313,7 +313,7 @@ int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive) {
             port = "http";
         }
         if ((result = getaddrinfo(tok,port,&hints,&serverInfo))){
-            fprintf(stderr,"GETADDRINFO ERROR %s\n",hostName);
+            fprintf(stderr,"GETADDRINFO ERROR %s\n",tok);
             if(result == EAI_SYSTEM){
                 fprintf(stderr,"GETADDRINFO: %s\n",strerror(errno));
             } else{

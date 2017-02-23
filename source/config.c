@@ -87,11 +87,11 @@ int parseLine(struct configStruct* config, char* line, ssize_t lineLen){
     char*lineCpy=(char*)malloc((strlen(line)+1)*sizeof(char));
     lineCpy = strcpy(lineCpy,line);
 
-    char *tok = strtok(lineCpy," ");
+    char *tok = strtok(lineCpy,"~");
     while(tok!=NULL){
         splittedLine[partCount]=tok;
         partCount++;
-        tok = strtok(NULL," ");
+        tok = strtok(NULL,"~");
         if(maxPartCount<=partCount){
             maxPartCount+=2;
             splittedLine=realloc(splittedLine,maxPartCount*sizeof(char*));
