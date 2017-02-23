@@ -307,7 +307,12 @@ int sendRequest(struct requestStruct *request, int epoolFd, int *threadAlive) {
         if(hostName == NULL){
             return -1;
         }
-        if ((result = getaddrinfo(hostName,"http",&hints,&serverInfo))){
+        char *port;
+        char *tok = strtok_r(hostName,":",&port);
+        if(strcmp(port,"")==0){
+            port = "http";
+        }
+        if ((result = getaddrinfo(tok,port,&hints,&serverInfo))){
             fprintf(stderr,"GETADDRINFO ERROR %s\n",hostName);
             if(result == EAI_SYSTEM){
                 fprintf(stderr,"GETADDRINFO: %s\n",strerror(errno));
